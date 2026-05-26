@@ -286,14 +286,10 @@ async function loadData() {
         query: { period: selectedPeriod.value },
       },
     );
-    // Only display generated if it's already saved, actually wait, for the dashboard we can choose to NOT show generated data
-    // because it's just a view. If `isGenerated` is true, it means it's not saved yet. We can just set records to empty, or we can show it but maybe state it's empty.
-    // Let's just show whatever the API returns, but maybe if isGenerated is true, it means nobody has submitted it.
-    if (res.isGenerated) {
-      records.value = []; // For public dashboard, don't show unsaved data
-    } else {
-      records.value = res.records;
-    }
+    
+    // Tampilkan HANYA data yang benar-benar sudah ada di database Firebase
+    // Record mock/bayangan yang digenerate oleh server akan memiliki updated_at: null
+    records.value = res.records.filter(r => r.updated_at !== null);
   } catch {
     records.value = [];
   } finally {

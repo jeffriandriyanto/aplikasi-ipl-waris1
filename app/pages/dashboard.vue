@@ -297,11 +297,8 @@ async function loadData() {
       },
     );
     
-    if (res.isGenerated) {
-      records.value = []; // Jangan tampilkan data bayangan yang belum di-save
-    } else {
-      records.value = res.records;
-    }
+    // Tampilkan HANYA data yang benar-benar sudah ada di database Firebase
+    records.value = res.records.filter(r => r.updated_at !== null);
   } catch {
     records.value = [];
   } finally {
