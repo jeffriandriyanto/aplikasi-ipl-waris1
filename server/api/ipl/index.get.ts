@@ -1,0 +1,95 @@
+import { getFirestoreDb } from '../../utils/firebase'
+import type { IplRecord, HouseStatus, DuesType, PaymentStatus } from '~/types'
+
+function getPreviousPeriod(period: string): string {
+  const [year, month] = period.split('-').map(Number)
+  const prevDate = new Date(year, month - 2, 1)
+  return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
+}
+
+export default defineEventHandler(async (event) => {
+  const query = getQuery(event)
+  const period = query.period as string
+  
+  if (!period) {
+    throw createError({ statusCode: 400, statusMessage: 'Period is required' })
+  }
+
+  const db = getFirestoreDb()
+  
+  // Fetch ALL master houses
+  const housesSnap = await db.collection('houses').get()
+  
+  // Fetch existing records for current period
+  const currentRecordsSnap = await db.collection('ipl_records')
+    .where('period', '==', period)
+    .get()
+    
+  // Fetch previous records (N-1) for fallback meter data
+  const prevPeriod = getPreviousPeriod(period)
+  const prevRecordsSnap = await db.collection('ipl_records')
+    .where('period', '==', prevPeriod)
+    .get()
+    
+  // Create maps for O(1) lookups
+  const currentMap = new Map<string, any>()
+  currentRecordsSnap.forEach(doc => currentMap.set(doc.data().house_id, { id: doc.id, ...doc.data() }))
+  
+  const prevMap = new Map<string, any>()
+  prevRecordsSnap.forEach(doc => prevMap.set(doc.data().house_id, doc.data()))
+  
+  const mergedRecords: IplRecord[] = []
+  
+  // Loop through ALL master houses to ensure the table is always full
+  housesSnap.forEach(doc => {
+    const house = doc.data()
+    const houseId = doc.id
+    
+    if (currentMap.has(houseId)) {
+      // Record already exists for this month, use it
+      const currentData = currentMap.get(houseId)
+      mergedRecords.push({
+        id: currentData.id,
+        period: currentData.period,
+        house_id: currentData.house_id,
+        block: currentData.block,
+        house_number: currentData.house_number,
+        status_rumah: currentData.status_rumah as HouseStatus,
+        jenis_iuran: currentData.jenis_iuran as DuesType,
+        status_iuran: currentData.status_iuran as PaymentStatus,
+        water_meter_past: currentData.water_meter_past,
+        water_meter_current: currentData.water_meter_current,
+        updated_at: currentData.updated_at ? currentData.updated_at.toDate() : null,
+      })
+    } else {
+      // Record doesn't exist yet, generate a MOCK object
+      const prev = prevMap.get(houseId)
+      mergedRecords.push({
+        period,
+        house_id: houseId,
+        block: house.block,
+        house_number: house.house_number,
+        status_rumah: (prev?.status_rumah || '') as HouseStatus,
+        jenis_iuran: (prev?.jenis_iuran || 'Air & Sampah') as DuesType,
+        status_iuran: 'Belum Terbayarkan',
+        water_meter_past: prev?.water_meter_current || 0,
+        water_meter_current: 0,
+        updated_at: null,
+      })
+    }
+  })
+  
+  // Sort in-memory to prevent Firestore missing index errors
+  mergedRecords.sort((a, b) => {
+    if (a.block === b.block) {
+      return a.house_number.localeCompare(b.house_number, undefined, { numeric: true })
+    }
+    return a.block.localeCompare(b.block)
+  })
+  
+  // If ANY record is missing from the DB, we consider the dataset partially "isGenerated"
+  // so the frontend knows it hasn't been completely synced.
+  const isGenerated = currentRecordsSnap.size < housesSnap.size
+  
+  return { records: mergedRecords, isGenerated }
+})
