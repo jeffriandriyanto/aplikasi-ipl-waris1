@@ -243,14 +243,13 @@ export function useDatabase() {
   // =====================
 
   async function getSiteConfig(): Promise<SiteConfig> {
-    // Note: Pastikan path collection ini sama dengan yang di server/api/config.post.ts
-    // Sebaiknya seragamkan, jika API post ke `collection('config').doc('site')`,
-    // maka kita sesuaikan pemanggilan frontend-nya:
-    const docSnap = await getDoc(doc(db.value, "config", "site"));
-    if (docSnap.exists()) {
-      return { ...DEFAULT_SITE_CONFIG, ...docSnap.data() } as SiteConfig;
+    try {
+      const config = await $fetch<SiteConfig>("/api/config");
+      return config;
+    } catch (e) {
+      console.warn("Failed to fetch site config from API", e);
+      return DEFAULT_SITE_CONFIG;
     }
-    return DEFAULT_SITE_CONFIG;
   }
 
   // =====================
