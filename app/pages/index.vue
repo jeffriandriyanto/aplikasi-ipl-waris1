@@ -106,32 +106,31 @@
       <div
         class="px-6 py-4 border-b border-surface-700/50 flex items-center justify-between"
       >
-        <div>
+        <div class="space-y-2">
           <h2 class="text-lg font-semibold text-black">Data Iuran</h2>
-          
-        </div>
-        <div class="relative">
-          <svg
-            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          <div class="relative">
+            <svg
+              class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              id="search-records"
+              v-model="searchQuery"
+              type="text"
+              autofocus
+              placeholder="Contoh: Mallory 1, Kingston 2"
+              class="input-field pl-10 py-2 text-sm w-72"
             />
-          </svg>
-          <input
-            id="search-records"
-            v-model="searchQuery"
-            type="text"
-            autofocus
-            placeholder="Contoh: Mallory 1, Kingston 2"
-            class="input-field pl-10 py-2 text-sm w-72"
-          />
+          </div>
         </div>
       </div>
 
@@ -205,7 +204,7 @@
           <div class="flex items-start justify-between mb-5">
             <div>
               <h3 class="text-lg font-semibold text-white">
-                Blok {{ r.block }}
+                {{ r.block }}
               </h3>
 
               <p class="text-surface-400 text-lg">{{ r.house_number }}</p>
@@ -216,7 +215,7 @@
             </span>
           </div>
 
-          <div class="grid grid-cols-2 gap-4 text-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <p class="text-surface-400 mb-1">Jenis Iuran</p>
 
@@ -356,9 +355,9 @@ function formatCurrency(n: number): string {
 }
 
 function statusBadge(s: string) {
-  if (s === "Ditinggali") return "badge-occupied";
+  if (s === "Ditinggali") return "badge-vacant";
   if (s === "Disewakan") return "badge-rented";
-  return "badge-vacant";
+  return "badge-occupied";
 }
 
 async function loadData() {
