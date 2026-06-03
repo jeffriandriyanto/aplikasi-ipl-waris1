@@ -6,10 +6,10 @@ export default defineEventHandler(async (event) => {
   const db = getFirestoreDb()
   const admin = getFirebaseAdmin()
   
-  if (!body.block || !body.house_number || !body.pic) {
+  if (!body.block || !body.house_number) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Block, house_number, and pic are required'
+      statusMessage: 'Block, house_number'
     })
   }
 
@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   const houseData = {
     block: body.block,
     house_number: body.house_number,
-    pic: body.pic,
+    pic: body.pic || "-",
     created_at: body.created_at ? admin.firestore.Timestamp.fromDate(new Date(body.created_at)) : admin.firestore.FieldValue.serverTimestamp(),
   }
 
@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
     id: createdDoc.id,
     block: data.block,
     house_number: data.house_number,
-    pic: data.pic,
+    pic: data.pic || "",
     created_at: data.created_at ? data.created_at.toDate() : null,
   }
 })
