@@ -1,4 +1,5 @@
 import { getFirestoreDb, getFirebaseAdmin } from '../../utils/firebase'
+import { invalidateCachePrefix } from '../../utils/cache'
 import { generateIplRecordId, generateHouseId } from '~/types'
 
 export default defineEventHandler(async (event) => {
@@ -37,6 +38,9 @@ export default defineEventHandler(async (event) => {
 
     await batch.commit()
   }
+
+  // Invalidate all IPL period caches since data changed
+  invalidateCachePrefix('ipl:')
 
   return { success: true, count: records.length }
 })

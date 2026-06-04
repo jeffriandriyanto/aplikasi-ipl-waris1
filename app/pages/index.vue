@@ -21,26 +21,6 @@
             {{ opt.label }}
           </option>
         </select>
-        <button
-          id="refresh-data"
-          class="btn-ghost p-2.5"
-          @click="loadData"
-          :disabled="isLoading"
-        >
-          <svg
-            :class="['w-5 h-5', { 'animate-spin': isLoading }]"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        </button>
       </div>
     </div>
 
@@ -101,39 +81,49 @@
       </div>
     </div>
 
-    <!-- Data Table -->
-    <div class="glass-card overflow-hidden">
-      <div
-        class="px-6 py-4 border-b border-surface-700/50 flex items-center justify-between"
-      >
-        <div class="space-y-2">
-          <h2 class="text-lg font-semibold text-black">Data Iuran</h2>
-          <div class="relative">
-            <svg
-              class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            <input
-              id="search-records"
-              v-model="searchQuery"
-              type="text"
-              autofocus
-              placeholder="Contoh: Mallory 1, Kingston 2"
-              class="input-field pl-10 py-2 text-sm w-72"
+    <!-- Search Form -->
+    <div class="glass-card mb-8 overflow-hidden">
+      <div class="px-6 py-4 border-b border-surface-700/50 bg-brand-500/5">
+        <h2 class="text-lg font-semibold text-black">Cek Tagihan Anda</h2>
+        <p class="text-sm text-surface-500">Pilih blok dan masukkan nomor rumah Anda</p>
+      </div>
+      <div class="p-6">
+        <form @submit.prevent="searchBill" class="flex flex-col sm:flex-row gap-4 items-end">
+          <div class="w-full sm:w-1/3">
+            <label class="block text-sm font-medium text-surface-700 mb-1">Blok Rumah</label>
+            <select v-model="selectedBlock" class="select-field w-full text-sm" required>
+              <option value="" disabled>Pilih Blok...</option>
+              <option v-for="b in availableBlocks" :key="b" :value="b">{{ b }}</option>
+            </select>
+          </div>
+          <div class="w-full sm:w-1/3">
+            <label class="block text-sm font-medium text-surface-700 mb-1">Nomor Rumah</label>
+            <input 
+              v-model="searchHouseNumber" 
+              type="text" 
+              class="input-field w-full text-sm" 
+              placeholder="Contoh: 12"
+              required
             />
           </div>
-        </div>
+          <div class="w-full sm:w-1/3">
+            <button type="submit" class="btn-primary w-full py-2.5" :disabled="isLoading">
+              <svg v-if="!isLoading" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <svg v-else class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Cari Tagihan
+            </button>
+          </div>
+        </form>
       </div>
+    </div>
 
+    <!-- Search Results -->
+    <div class="glass-card overflow-hidden">
       <div v-if="isLoading" class="flex items-center justify-center py-20">
         <svg
           class="w-8 h-8 text-brand-500 animate-spin"
@@ -157,43 +147,28 @@
       </div>
 
       <div
-        v-else-if="filteredRecords.length === 0 && searchQuery.length > 0"
+        v-else-if="!hasLoaded"
         class="flex flex-col items-center justify-center py-20 px-4"
       >
-        <p class="text-surface-400 text-sm mb-3">
-          Belum ada data untuk periode ini.
-        </p>
-      </div>
-
-      <div
-        v-else-if="searchQuery.trim() === ''"
-        class="flex flex-col items-center justify-center py-20 px-4"
-      >
-        <svg
-          class="w-12 h-12 text-surface-600 mb-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          />
-        </svg>
-
-        <p class="text-surface-400 text-sm">
-          Cari berdasarkan blok atau nomor rumah
-        </p>
+        <div class="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
+          <svg class="w-8 h-8 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </div>
+        <p class="text-surface-600 font-medium mb-1">Silakan cari tagihan Anda</p>
+        <p class="text-surface-400 text-sm text-center">Hasil pencarian akan tampil di sini.</p>
       </div>
 
       <div
         v-else-if="filteredRecords.length === 0"
         class="flex flex-col items-center justify-center py-20 px-4"
       >
-        <p class="text-surface-400 text-sm">Data tidak ditemukan</p>
+        <p class="text-surface-400 text-sm mb-3">
+          Tagihan tidak ditemukan untuk Blok {{ lastSearchedBlock }} No. {{ lastSearchedHouseNumber }}
+        </p>
       </div>
+
+
 
       <div v-else class="p-6 grid gap-4">
         <div
@@ -267,7 +242,7 @@
 </template>
 
 <script setup lang="ts">
-import type { IplRecord, DashboardStats, SiteConfig } from "~/types";
+import type { IplRecord, DashboardStats, SiteConfig, House } from "~/types";
 import { DEFAULT_SITE_CONFIG } from "~/types";
 definePageMeta({ layout: "client" });
 useHead({ title: "Dashboard - IPL Manager" });
@@ -278,8 +253,25 @@ const periodOptions = generatePeriodOptions();
 const selectedPeriod = ref(getCurrentPeriod());
 const records = ref<IplRecord[]>([]);
 const siteConfig = ref<SiteConfig>({ ...DEFAULT_SITE_CONFIG });
-const isLoading = ref(true);
-const searchQuery = ref("");
+const isLoading = ref(false);
+const hasLoaded = ref(false);
+
+const selectedBlock = ref("");
+const searchHouseNumber = ref("");
+const lastSearchedBlock = ref("");
+const lastSearchedHouseNumber = ref("");
+
+// Fetch houses on mount for block dropdown
+const { data: houses } = useFetch<House[]>("/api/houses", {
+  default: () => [],
+});
+
+const availableBlocks = computed(() => {
+  if (!houses.value || houses.value.length === 0) return [];
+  const blocks = new Set<string>();
+  houses.value.forEach((h) => blocks.add(h.block));
+  return Array.from(blocks).sort();
+});
 
 function calculateTotal(r: IplRecord): number {
   const usage = Math.max(0, r.water_meter_current - r.water_meter_past);
@@ -329,19 +321,15 @@ const stats = computed<DashboardStats>(() => {
 });
 
 const filteredRecords = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-
-  if (!q) return [];
+  if (!hasLoaded.value) return [];
+  
+  const b = lastSearchedBlock.value;
+  const hn = lastSearchedHouseNumber.value.trim().toLowerCase();
 
   return records.value.filter((r) => {
-    const block = r.block.toLowerCase();
-    const house = r.house_number.toLowerCase();
-
     return (
-      block.includes(q) ||
-      house.includes(q) ||
-      `${block}${house}`.includes(q.replace(/\s/g, "")) ||
-      `${block}-${house}`.includes(q.replace(/\s/g, ""))
+      r.block === b &&
+      r.house_number.toLowerCase() === hn
     );
   });
 });
@@ -360,8 +348,14 @@ function statusBadge(s: string) {
   return "badge-occupied";
 }
 
-async function loadData() {
+async function searchBill() {
+  if (!selectedBlock.value || !searchHouseNumber.value.trim()) return;
+  
+  lastSearchedBlock.value = selectedBlock.value;
+  lastSearchedHouseNumber.value = searchHouseNumber.value;
+  
   isLoading.value = true;
+  hasLoaded.value = false;
   try {
     const config = await getSiteConfig();
     if (config) {
@@ -378,13 +372,11 @@ async function loadData() {
     // Tampilkan HANYA data yang benar-benar sudah ada di database Firebase
     // Record mock/bayangan yang digenerate oleh server akan memiliki updated_at: null
     records.value = res.records.filter((r) => r.updated_at !== null);
+    hasLoaded.value = true;
   } catch {
     records.value = [];
   } finally {
     isLoading.value = false;
   }
 }
-
-watch(selectedPeriod, () => loadData());
-onMounted(() => loadData());
 </script>

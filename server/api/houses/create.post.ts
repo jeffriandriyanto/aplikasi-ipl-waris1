@@ -1,4 +1,5 @@
 import { getFirestoreDb, getFirebaseAdmin } from '../../utils/firebase'
+import { invalidateCache, CACHE_KEYS } from '../../utils/cache'
 import { generateHouseId } from '~/types'
 
 export default defineEventHandler(async (event) => {
@@ -23,6 +24,9 @@ export default defineEventHandler(async (event) => {
   }
 
   await db.collection('houses').doc(id).set(houseData)
+
+  // Invalidate cache
+  invalidateCache(CACHE_KEYS.HOUSES)
 
   // Fetch and return the newly created document data to allow immediate reactive array update
   const createdDoc = await db.collection('houses').doc(id).get()

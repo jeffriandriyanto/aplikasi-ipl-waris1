@@ -1,4 +1,5 @@
 import { getFirestoreDb } from "../../utils/firebase";
+import { invalidateCache, CACHE_KEYS } from "../../utils/cache";
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event);
@@ -29,6 +30,9 @@ export default defineEventHandler(async (event) => {
   };
 
   await houseRef.update(updateData);
+
+  // Invalidate cache
+  invalidateCache(CACHE_KEYS.HOUSES);
 
   // Ambil data terbaru untuk dikembalikan ke client-side state
   const updatedDoc = await houseRef.get();

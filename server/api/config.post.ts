@@ -1,5 +1,6 @@
 // /server/api/config.post.ts
 import { getFirestoreDb, getFirebaseAdmin } from "../utils/firebase";
+import { invalidateCache, CACHE_KEYS } from "../utils/cache";
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event);
@@ -34,6 +35,9 @@ export default defineEventHandler(async (event) => {
       },
       { merge: true },
     );
+
+    // Invalidate cache so next read gets fresh data
+    invalidateCache(CACHE_KEYS.CONFIG);
 
     return { success: true };
   } catch (error: any) {

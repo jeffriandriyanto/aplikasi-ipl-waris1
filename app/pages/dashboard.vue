@@ -23,12 +23,12 @@
         </select>
         <button
           id="refresh-data"
-          class="btn-ghost p-2.5"
+          class="btn-primary text-sm"
           @click="loadData"
           :disabled="isLoading"
         >
           <svg
-            :class="['w-5 h-5', { 'animate-spin': isLoading }]"
+            :class="['w-4 h-4', { 'animate-spin': isLoading }]"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -40,6 +40,7 @@
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             />
           </svg>
+          <span class="ml-2">Muat Data</span>
         </button>
       </div>
     </div>
@@ -123,6 +124,19 @@
       </div>
 
       <div
+        v-else-if="!hasLoaded"
+        class="flex flex-col items-center justify-center py-20 px-4"
+      >
+        <div class="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
+          <svg class="w-8 h-8 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </div>
+        <p class="text-surface-600 font-medium mb-1">Pilih periode dan klik "Muat Data"</p>
+        <p class="text-surface-400 text-sm text-center">Data hanya dimuat saat diminta untuk menghemat kuota pembacaan database.</p>
+      </div>
+
+      <div
         v-else-if="filteredRecords.length === 0"
         class="flex flex-col items-center justify-center py-20 px-4"
       >
@@ -195,7 +209,8 @@ const periodOptions = generatePeriodOptions();
 const selectedPeriod = ref(getCurrentPeriod());
 const records = ref<IplRecord[]>([]);
 const siteConfig = ref<SiteConfig>({ ...DEFAULT_SITE_CONFIG });
-const isLoading = ref(true);
+const isLoading = ref(false);
+const hasLoaded = ref(false);
 const searchQuery = ref("");
 
 // Perhitungan Total (Duplikat dari logika bulanan untuk membaca master)
@@ -299,13 +314,11 @@ async function loadData() {
     
     // Tampilkan HANYA data yang benar-benar sudah ada di database Firebase
     records.value = res.records.filter(r => r.updated_at !== null);
+    hasLoaded.value = true;
   } catch {
     records.value = [];
   } finally {
     isLoading.value = false;
   }
 }
-
-watch(selectedPeriod, () => loadData());
-onMounted(() => loadData());
 </script>
