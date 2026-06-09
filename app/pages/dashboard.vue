@@ -7,7 +7,7 @@
         <h1 class="page-title">Dashboard</h1>
         <p class="page-subtitle">Monitor iuran bulanan dan statistik kas</p>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center gap-3">
         <select
           id="period-selector"
           v-model="selectedPeriod"
@@ -69,35 +69,49 @@
       </div>
     </div>
 
-    <div class="glass-card overflow-hidden">
-      <div class="px-6 py-4 border-b border-surface-200 flex items-center justify-between">
+    <div class="glass-card overflow-hidden" id="dashboard-export-target">
+      <div class="px-6 py-4 border-b border-surface-200 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 class="text-lg font-semibold text-surface-900">Data Iuran</h2>
           <p class="text-xs text-surface-500 mt-0.5">
             {{ records.length }} record
           </p>
         </div>
-        <div class="relative">
-          <svg
-            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+        <div class="flex items-center gap-2">
+          <button class="btn-ghost text-xs" @click="exportCSV" :disabled="!hasLoaded || records.length === 0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            CSV
+          </button>
+          <button class="btn-ghost text-xs" @click="exportPDF" :disabled="!hasLoaded || records.length === 0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            PDF
+          </button>
+          <div class="relative">
+            <svg
+              class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              id="search-records"
+              v-model="searchQuery"
+              type="text"
+              placeholder="Cari blok / rumah..."
+              class="input-field pl-10 py-2 text-sm w-56"
             />
-          </svg>
-          <input
-            id="search-records"
-            v-model="searchQuery"
-            type="text"
-            placeholder="Cari blok / rumah..."
-            class="input-field pl-10 py-2 text-sm w-56"
-          />
+          </div>
         </div>
       </div>
 
@@ -172,7 +186,7 @@
               </td>
               <td class="text-surface-600">{{ r.jenis_iuran }}</td>
               <td class="font-mono text-primary font-semibold">
-                {{ formatCurrency(calculateTotal(r)) }}
+                {{ formatCurrency(calculateTotal(r, siteConfig)) }}
               </td>
               <td>
                 <span
@@ -198,127 +212,117 @@
 </template>
 
 <script setup lang="ts">
-import type { IplRecord, DashboardStats, SiteConfig } from "~/types";
-import { DEFAULT_SITE_CONFIG } from "~/types";
+import type { IplRecord, DashboardStats, SiteConfig } from '~/types'
+import { DEFAULT_SITE_CONFIG } from '~/types'
 
 useHead({ title: 'Dashboard - IPL Manager' })
 
-// Hapus computeStats dari import, kita hitung secara lokal dengan master config baru
-const { generatePeriodOptions, getCurrentPeriod, getSiteConfig } = useDatabase();
-const periodOptions = generatePeriodOptions();
-const selectedPeriod = ref(getCurrentPeriod());
-const records = ref<IplRecord[]>([]);
-const siteConfig = ref<SiteConfig>({ ...DEFAULT_SITE_CONFIG });
-const isLoading = ref(false);
-const hasLoaded = ref(false);
-const searchQuery = ref("");
+const { generatePeriodOptions, getCurrentPeriod, getSiteConfig } = useDatabase()
+const { calculateTotal, formatCurrency, statusBadge, matchHouseNumber, sanitizeCsvField } = useBilling()
+const toast = useToast()
 
-// Perhitungan Total (Duplikat dari logika bulanan untuk membaca master)
-function usageValue(r: IplRecord): number {
-  return Math.max(0, r.water_meter_current - r.water_meter_past);
-}
+const periodOptions = generatePeriodOptions()
+const selectedPeriod = ref(getCurrentPeriod())
+const records = ref<IplRecord[]>([])
+const siteConfig = ref<SiteConfig>({ ...DEFAULT_SITE_CONFIG })
+const isLoading = ref(false)
+const hasLoaded = ref(false)
+const searchQuery = ref('')
 
-function calculateTotal(r: IplRecord): number {
-  const usage = usageValue(r);
-  const cfg = siteConfig.value;
-  
-  let total = 0;
-  
-  if (r.jenis_iuran.includes('Sampah')) {
-    total += cfg.dues_trash_flat || 25000;
-  }
-  
-  if (r.jenis_iuran.includes('Air')) {
-    const minFee = cfg.water_min_fee || 25000;
-    const pricePerCubic = cfg.water_price_per_cubic || 3500;
-
-    if (r.status_rumah === 'Kosong' && usage === 0) {
-      // Tidak ada biaya
-    } else {
-      if (usage <= 10) {
-        total += minFee;
-      } else {
-        total += minFee + ((usage - 10) * pricePerCubic);
-      }
-    }
-  }
-  
-  return total;
-}
-
-// Override komputasi statistik untuk menggunakan dynamic pricing
 const stats = computed<DashboardStats>(() => {
-  let totalKasMasuk = 0;
-  let totalRumahTerisi = 0;
-  let totalPaid = 0;
-  let totalUnpaid = 0;
+  let totalKasMasuk = 0
+  let totalRumahTerisi = 0
+  let totalPaid = 0
+  let totalUnpaid = 0
 
   records.value.forEach(r => {
-    // Hitung status terisi
     if (r.status_rumah === 'Ditinggali' || r.status_rumah === 'Disewakan') {
-      totalRumahTerisi++;
+      totalRumahTerisi++
     }
-
-    // Hitung keuangan
     if (r.status_iuran === 'Terbayarkan') {
-      totalPaid++;
-      totalKasMasuk += calculateTotal(r); // Dynamic billing!
+      totalPaid++
+      totalKasMasuk += calculateTotal(r, siteConfig.value)
     } else {
-      totalUnpaid++;
+      totalUnpaid++
     }
-  });
+  })
 
-  return { totalKasMasuk, totalRumahTerisi, totalPaid, totalUnpaid };
-});
+  return { totalKasMasuk, totalRumahTerisi, totalPaid, totalUnpaid }
+})
 
 const filteredRecords = computed(() => {
-  if (!searchQuery.value.trim()) return records.value;
-  const q = searchQuery.value.toLowerCase();
+  if (!searchQuery.value.trim()) return records.value
+  const q = searchQuery.value.trim()
   return records.value.filter(
     (r) =>
-      r.block.toLowerCase().includes(q) ||
-      r.house_number.toLowerCase().includes(q),
-  );
-});
-
-function formatCurrency(n: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(n);
-}
-
-function statusBadge(s: string) {
-  if (s === "Ditinggali") return "badge-occupied";
-  if (s === "Disewakan") return "badge-rented";
-  return "badge-vacant";
-}
+      r.block.toLowerCase().includes(q.toLowerCase()) ||
+      matchHouseNumber(r.house_number, q),
+  )
+})
 
 async function loadData() {
-  isLoading.value = true;
+  isLoading.value = true
   try {
-    // 1. Tarik Data Master Dahulu
-    const config = await getSiteConfig();
+    const [config, res] = await Promise.all([
+      getSiteConfig(),
+      $fetch<{ records: IplRecord[]; isGenerated: boolean }>('/api/ipl', {
+        query: { period: selectedPeriod.value, _t: Date.now() },
+      }),
+    ])
+
     if (config) {
-      siteConfig.value = config;
+      siteConfig.value = config
     }
 
-    // 2. Tarik Data Iuran
-    const res = await $fetch<{ records: IplRecord[]; isGenerated: boolean }>(
-      "/api/ipl",
-      {
-        query: { period: selectedPeriod.value },
-      },
-    );
-    
-    // Tampilkan HANYA data yang benar-benar sudah ada di database Firebase
-    records.value = res.records.filter(r => r.updated_at !== null);
-    hasLoaded.value = true;
+    records.value = res.records.filter(r => r.updated_at !== null)
+    hasLoaded.value = true
   } catch {
-    records.value = [];
+    records.value = []
   } finally {
-    isLoading.value = false;
+    isLoading.value = false
   }
+}
+
+function exportCSV() {
+  const headers = ['Blok', 'No Rumah', 'Status Rumah', 'Jenis Iuran', 'Status Iuran', 'Meter Lalu', 'Meter Skrg', 'Penggunaan (m3)', 'Nominal (Rp)']
+  const rows = filteredRecords.value.map(r => [
+    sanitizeCsvField(r.block),
+    sanitizeCsvField(r.house_number),
+    sanitizeCsvField(r.status_rumah),
+    sanitizeCsvField(r.jenis_iuran),
+    sanitizeCsvField(r.status_iuran),
+    r.water_meter_past,
+    r.water_meter_current,
+    Math.max(0, r.water_meter_current - r.water_meter_past),
+    calculateTotal(r, siteConfig.value),
+  ])
+
+  const csv = [headers, ...rows].map(row => row.join(',')).join('\n')
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Dashboard_${selectedPeriod.value}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function exportPDF() {
+  if (filteredRecords.value.length > 100) {
+    toast.show('Data terlalu besar untuk PDF. Gunakan CSV untuk data >100 baris.', 'info')
+    return
+  }
+  const html2pdf = (await import('html2pdf.js')).default
+  const element = document.getElementById('dashboard-export-target')
+  if (!element) return
+  html2pdf()
+    .set({
+      margin: 10,
+      filename: `Dashboard_${selectedPeriod.value}.pdf`,
+      html2canvas: { scale: 1 },
+      jsPDF: { orientation: 'landscape' },
+    })
+    .from(element)
+    .save()
 }
 </script>

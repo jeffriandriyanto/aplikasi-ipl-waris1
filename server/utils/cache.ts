@@ -58,6 +58,7 @@ export const CACHE_KEYS = {
   CONFIG: 'config:site',
   HOUSES: 'houses:all',
   iplRecords: (period: string) => `ipl:${period}`,
+  kasEntries: (period: string) => `kas:${period}`,
 } as const
 
 // TTL constants (in milliseconds)
@@ -65,4 +66,5 @@ export const CACHE_TTL = {
   CONFIG: 10 * 60 * 1000,    // 10 minutes
   HOUSES: 10 * 60 * 1000,    // 10 minutes
   IPL_RECORDS: 5 * 60 * 1000, // 5 minutes
+  KAS_ENTRIES: 5 * 60 * 1000, // 5 minutes
 } as const

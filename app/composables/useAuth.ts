@@ -7,10 +7,6 @@ import {
 import { doc, getDoc } from "firebase/firestore";
 import type { User } from "~/types";
 
-/**
- * Auth composable with Firebase Authentication + Firestore user profile.
- * Manages the current user state reactively.
- */
 export function useAuth() {
   const { auth, db } = useFirebase();
 
@@ -23,45 +19,30 @@ export function useAuth() {
   const isAdmin = computed(() => userProfile.value?.role === "admin");
   const isPetugas = computed(() => userProfile.value?.role === "petugas");
 
-  /**
-   * Fetch user profile from Firestore `users` collection
-   */
   async function fetchUserProfile(uid: string): Promise<void> {
     try {
-      console.log("--- FETCHING USER PROFILE ---");
-      console.log("UID Target:", uid);
-
       const userRef = doc(db.value, "users", uid);
       const userDoc = await getDoc(userRef);
 
       if (userDoc.exists()) {
         const data = userDoc.data();
-        console.log("Data Ditemukan di Firestore:", data);
-
-        // Memaksa pengambilan nilai dari Firestore ke state Vue
         userProfile.value = {
           email: data.email || currentUser.value?.email || "",
           name: data.name || currentUser.value?.displayName || "User",
-          role: data.role || "petugas", // Ambil role dari Firestore
+          role: data.role || "petugas",
         };
       } else {
-        console.warn("Dokumen tidak ditemukan di Firestore untuk UID:", uid);
-        // Auto-create a minimal profile if not found
         userProfile.value = {
           email: currentUser.value?.email || "",
           name: currentUser.value?.displayName || "User",
           role: "petugas",
         };
       }
-    } catch (e) {
-      console.error("Error fetching user profile:", e);
+    } catch {
       userProfile.value = null;
     }
   }
 
-  /**
-   * Initialize auth state listener
-   */
   function initAuth(): void {
     onAuthStateChanged(auth.value, async (user) => {
       currentUser.value = user;
@@ -74,9 +55,16 @@ export function useAuth() {
     });
   }
 
-  /**
-   * Sign in with email and password
-   */
+  async function getIdToken(): Promise<string | null> {
+    const user = auth.value.currentUser
+    if (!user) return null
+    try {
+      return await user.getIdToken()
+    } catch {
+      return null
+    }
+  }
+
   async function signIn(email: string, password: string): Promise<boolean> {
     error.value = null;
     isLoading.value = true;
@@ -108,14 +96,11 @@ export function useAuth() {
     }
   }
 
-  /**
-   * Sign out
-   */
   async function signOut(): Promise<void> {
     await firebaseSignOut(auth.value);
     currentUser.value = null;
     userProfile.value = null;
-    navigateTo("/login");
+    navigateTo("/admin-login");
   }
 
   return {
@@ -127,6 +112,7 @@ export function useAuth() {
     isPetugas,
     error,
     initAuth,
+    getIdToken,
     signIn,
     signOut,
   };

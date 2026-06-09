@@ -30,6 +30,7 @@ export interface IplRecord {
   status_iuran: PaymentStatus
   water_meter_past: number
   water_meter_current: number
+  amount_paid?: number
   updated_at: Date | null
 }
 
@@ -73,5 +74,22 @@ export interface SiteConfig {
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
   dues_trash_flat: 25000,
   water_min_fee: 25000,
-  water_price_per_cubic: 3500,    // Anda bisa sesuaikan ini, misal 3500 per kubik
+  water_price_per_cubic: 3500,
+}
+
+export type KasType = 'masuk' | 'keluar'
+
+export interface KasLogEntry {
+  id?: string
+  period: string
+  type: KasType
+  category: string
+  description: string
+  amount: number
+  created_at: Date | null
+}
+
+export const KAS_CATEGORIES: Record<KasType, string[]> = {
+  masuk: ['Donasi', 'Iuran Tambahan', 'Sumbangan', 'Lainnya'],
+  keluar: ['Perbaikan', 'Operasional', 'Infrastruktur', 'Kebersihan', 'Lainnya'],
 }

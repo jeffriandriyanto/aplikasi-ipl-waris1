@@ -313,6 +313,7 @@ import type { House } from "~/types";
 useHead({ title: "Data Rumah - IPL Manager" });
 
 const toast = useToast();
+const { authFetch } = useAuthFetch();
 
 const {
   data: houses,
@@ -380,8 +381,7 @@ async function handleSave() {
 
   try {
     if (isEditMode.value) {
-      // Eksekusi Update API (PATCH)
-      await $fetch("/api/houses/update", {
+      await authFetch("/api/houses/update", {
         method: "PATCH",
         body: {
           id: form.id,
@@ -390,8 +390,7 @@ async function handleSave() {
       });
       toast.show("PIC Rumah berhasil diperbarui.", "success");
     } else {
-      // Eksekusi Create API (POST)
-      await $fetch("/api/houses/create", {
+      await authFetch("/api/houses/create", {
         method: "POST",
         body: {
           block: form.block,
@@ -416,7 +415,7 @@ async function handleDelete() {
   if (!deleteTarget.value || !deleteTarget.value.id) return;
   isDeleting.value = true;
   try {
-    await $fetch(`/api/houses/${deleteTarget.value.id}`, {
+    await authFetch(`/api/houses/${deleteTarget.value.id}`, {
       method: "DELETE",
     });
     toast.show("Rumah berhasil dihapus.", "success");

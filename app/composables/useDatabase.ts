@@ -257,9 +257,9 @@ export function useDatabase() {
   // =====================
 
   function getPreviousPeriod(period: string): string {
-    const [year, month] = period.split("-").map(Number);
-    const prevDate = new Date(year, month - 2, 1); // month is 0-indexed in JS
-    return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+    const [year, month] = period.split('-').map(Number)
+    const prevDate = new Date(year!, (month || 1) - 2, 1) // month is 0-indexed in JS
+    return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
   }
 
   function generatePeriodOptions(

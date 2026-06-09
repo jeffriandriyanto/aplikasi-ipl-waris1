@@ -1,6 +1,6 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
 import { getAuth, type Auth } from 'firebase/auth'
-import { getFirestore, type Firestore } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from 'firebase/firestore'
 
 let firebaseApp: FirebaseApp | null = null
 let auth: Auth | null = null
@@ -18,11 +18,14 @@ export default defineNuxtPlugin(() => {
     appId: config.public.firebaseAppId,
   }
 
-  // Initialize Firebase only once
   if (!firebaseApp) {
     firebaseApp = initializeApp(firebaseConfig)
     auth = getAuth(firebaseApp)
-    db = getFirestore(firebaseApp)
+    db = initializeFirestore(firebaseApp, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    })
   }
 
   return {

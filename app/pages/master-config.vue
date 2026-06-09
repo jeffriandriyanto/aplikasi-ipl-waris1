@@ -137,6 +137,7 @@ import { DEFAULT_SITE_CONFIG } from "~/types";
 useHead({ title: "Master Parameter Tarif - IPL Manager" });
 
 const { getSiteConfig } = useDatabase();
+const { authFetch } = useAuthFetch();
 const toast = useToast();
 
 const isLoading = ref(false);
@@ -174,7 +175,7 @@ async function loadCurrentConfig() {
 async function saveConfig() {
   isSaving.value = true;
   try {
-    await $fetch("/api/config", {
+    await authFetch("/api/config", {
       method: "POST",
       body: configForm.value,
     });

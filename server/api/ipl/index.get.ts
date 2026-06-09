@@ -4,7 +4,7 @@ import type { IplRecord, HouseStatus, DuesType, PaymentStatus, House } from '~/t
 
 function getPreviousPeriod(period: string): string {
   const [year, month] = period.split('-').map(Number)
-  const prevDate = new Date(year, month - 2, 1)
+  const prevDate = new Date(year!, (month || 1) - 2, 1)
   return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
 }
 
@@ -76,6 +76,7 @@ export default defineEventHandler(async (event) => {
           status_iuran: currentData.status_iuran as PaymentStatus,
           water_meter_past: currentData.water_meter_past,
           water_meter_current: currentData.water_meter_current,
+          amount_paid: currentData.amount_paid ?? undefined,
           updated_at: currentData.updated_at ? currentData.updated_at.toDate() : null,
         })
       } else {
@@ -91,6 +92,7 @@ export default defineEventHandler(async (event) => {
           status_iuran: 'Belum Terbayarkan',
           water_meter_past: prev?.water_meter_current || 0,
           water_meter_current: 0,
+          amount_paid: undefined,
           updated_at: null,
         })
       }

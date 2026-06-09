@@ -13,9 +13,11 @@ onMounted(() => {
   initAuth()
 })
 
+const PROTECTED_PATHS = ['/houses', '/input-bulanan', '/kas', '/dashboard', '/master-config']
+
 watch([isLoading, isAuthenticated], ([loading, auth]) => {
   if (!loading && !auth) {
-    if (route.path.startsWith('/houses') || route.path.startsWith('/input-bulanan')) {
+    if (PROTECTED_PATHS.some(p => route.path.startsWith(p))) {
       navigateTo('/')
     }
   }
