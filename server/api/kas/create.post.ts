@@ -11,7 +11,7 @@ const VALID_CATEGORIES = new Set([
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  const { period, type, category, description, amount } = body
+  const { period, type, category, description, amount, transaction_date } = body
 
   if (!period || !type || !category || !description || amount == null) {
     throw createError({ statusCode: 400, statusMessage: 'Missing required fields' })
@@ -40,18 +40,24 @@ export default defineEventHandler(async (event) => {
   const db = getFirestoreDb()
   const admin = getFirebaseAdmin()
 
-  const docRef = await db.collection('kas_log').add({
+  const docData: Record<string, any> = {
     period,
     type,
     category,
     description: description.trim(),
     amount: Math.round(amount),
     created_at: admin.firestore.FieldValue.serverTimestamp(),
-  })
+  }
+
+  if (transaction_date && typeof transaction_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(transaction_date)) {
+    docData.transaction_date = admin.firestore.Timestamp.fromDate(new Date(transaction_date + 'T00:00:00'))
+  }
+
+  const docRef = await db.collection('kas_log').add(docData)
 
   invalidateCache(CACHE_KEYS.kasEntries(period))
 
-  return {
+  const result: Record<string, any> = {
     id: docRef.id,
     period,
     type,
@@ -60,4 +66,10 @@ export default defineEventHandler(async (event) => {
     amount: Math.round(amount),
     created_at: new Date(),
   }
+
+  if (transaction_date && typeof transaction_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(transaction_date)) {
+    result.transaction_date = new Date(transaction_date + 'T00:00:00')
+  }
+
+  return result
 })

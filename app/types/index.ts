@@ -86,6 +86,7 @@ export interface KasLogEntry {
   category: string
   description: string
   amount: number
+  transaction_date?: Date | null
   created_at: Date | null
 }
 

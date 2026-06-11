@@ -165,7 +165,7 @@
                 <th>No. Rumah</th>
                 <th>Status Rumah</th>
                 <th>Jenis Iuran</th>
-                <th>Status Iuran</th>
+                <th class="min-w-[200px]">Status Iuran</th>
                 <th>Meter Lalu</th>
                 <th>Meter Skrg</th>
                 <th>Penggunaan</th>
@@ -316,10 +316,12 @@ async function loadPeriod() {
 
     siteConfig.value = config
 
-    records.value = res.records.map((r) => ({
-      ...r,
-      amount_paid: r.amount_paid ?? calculateTotal(r, siteConfig.value),
-    }))
+    records.value = res.records
+      .filter((r) => r.status_rumah === 'Ditinggali' || r.status_rumah === 'Disewakan')
+      .map((r) => ({
+        ...r,
+        amount_paid: r.amount_paid ?? calculateTotal(r, siteConfig.value),
+      }))
     isGenerated.value = res.isGenerated
 
     if (res.isGenerated) {

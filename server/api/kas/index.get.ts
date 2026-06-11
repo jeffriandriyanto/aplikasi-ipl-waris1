@@ -26,13 +26,14 @@ export default defineEventHandler(async (event) => {
         category: data.category,
         description: data.description,
         amount: data.amount,
+        transaction_date: data.transaction_date ? data.transaction_date.toDate() : null,
         created_at: data.created_at ? data.created_at.toDate() : null,
       })
     })
 
     entries.sort((a, b) => {
-      const dateA = a.created_at ? a.created_at.getTime() : 0
-      const dateB = b.created_at ? b.created_at.getTime() : 0
+      const dateA = a.transaction_date ? a.transaction_date.getTime() : (a.created_at ? a.created_at.getTime() : 0)
+      const dateB = b.transaction_date ? b.transaction_date.getTime() : (b.created_at ? b.created_at.getTime() : 0)
       return dateB - dateA
     })
 
