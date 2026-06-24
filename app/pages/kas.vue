@@ -1039,15 +1039,18 @@ async function downloadLaporanPDF() {
 
     let kasMasuk = 0;
     let kasKeluar = 0;
-    const kasRows: Array<[string, string, string, string]> = [];
+    // UPDATE: Mengubah definisi tuple ke 5 elemen
+    const kasRows: Array<[string, string, string, string, string]> = [];
 
     iplRes.records.forEach((r) => {
       if (r.status_iuran === "Terbayarkan") {
         const nominal = calculateTotal(r, config);
+        // UPDATE: Menambahkan r.description (fallback ke '-' jika kosong)
         kasRows.push([
           `${r.block} No. ${r.house_number}`,
           "Iuran",
           r.jenis_iuran,
+          (r as any).description || "-", 
           formatCurrency(nominal),
         ]);
       }
@@ -1062,18 +1065,22 @@ async function downloadLaporanPDF() {
 
       if (entry.type === "masuk") {
         kasMasuk += entry.amount || 0;
+        // UPDATE: Menambahkan entry.description
         kasRows.push([
           dateStr,
           "Masuk",
           entry.category,
+          entry.description || "-",
           formatCurrency(entry.amount),
         ]);
       } else {
         kasKeluar += entry.amount || 0;
+        // UPDATE: Menambahkan entry.description
         kasRows.push([
           dateStr,
           "Keluar",
           entry.category,
+          entry.description || "-",
           formatCurrency(entry.amount),
         ]);
       }
@@ -1154,7 +1161,7 @@ async function downloadLaporanPDF() {
 
     autoTable(doc, {
       startY: finalY + 11,
-      head: [["Tanggal/Unit", "Tipe", "Kategori", "Jumlah (Rp)"]],
+      head: [["Tanggal/Unit", "Tipe", "Kategori", "Deskripsi", "Jumlah (Rp)"]],
       body: kasRows,
       theme: "striped",
       headStyles: {
@@ -1170,10 +1177,11 @@ async function downloadLaporanPDF() {
         lineWidth: 0.1,
       },
       columnStyles: {
-        0: { cellWidth: 55 },
-        1: { cellWidth: 25 },
-        2: { cellWidth: 45 },
-        3: { cellWidth: 40, halign: "right" },
+        0: { cellWidth: 40 }, // Tanggal/Unit
+        1: { cellWidth: 15 }, // Tipe
+        2: { cellWidth: 35 }, // Kategori
+        3: { cellWidth: 40 }, // Deskripsi (Sengaja dibuat lebih lebar)
+        4: { cellWidth: 40, halign: "right" }, // Jumlah (Rp)
       },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: 14, right: 14 },
