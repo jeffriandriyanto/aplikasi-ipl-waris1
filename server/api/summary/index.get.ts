@@ -1,6 +1,6 @@
 import { getFirestoreDb } from '../../utils/firebase'
 import { cachedFetch, CACHE_KEYS, CACHE_TTL } from '../../utils/cache'
-import type { SiteConfig } from '~/types'
+import type { SiteConfig, House } from '~/types'
 import { DEFAULT_SITE_CONFIG } from '~/types'
 
 export default defineEventHandler(async (event) => {
@@ -14,13 +14,31 @@ export default defineEventHandler(async (event) => {
   return cachedFetch(`summary:${period}`, CACHE_TTL.IPL_RECORDS, async () => {
     const db = getFirestoreDb()
 
-    // Fetch config for billing calculation
     const configData = await cachedFetch<SiteConfig>(CACHE_KEYS.CONFIG, CACHE_TTL.CONFIG, async () => {
       const configSnap = await db.collection('config').doc('site').get()
       return configSnap.exists ? (configSnap.data() as SiteConfig) : DEFAULT_SITE_CONFIG
     })
 
-    // Fetch IPL records for this period
+    // Fetch active houses for filtering
+    const houses = await cachedFetch<House[]>(CACHE_KEYS.HOUSES, CACHE_TTL.HOUSES, async () => {
+      const snapshot = await db.collection('houses').get()
+      const result: House[] = []
+      snapshot.forEach(doc => {
+        const data = doc.data()
+        result.push({
+          id: doc.id,
+          block: data.block,
+          house_number: data.house_number,
+          pic: data.pic,
+          is_active: data.is_active !== false,
+          created_at: null,
+        })
+      })
+      return result
+    })
+
+    const activeHouseIds = new Set(houses.filter(h => h.is_active !== false).map(h => h.id))
+
     const iplSnap = await db.collection('ipl_records')
       .where('period', '==', period)
       .get()
@@ -31,9 +49,11 @@ export default defineEventHandler(async (event) => {
 
     iplSnap.forEach(doc => {
       const data = doc.data()
+      // Skip records for inactive houses
+      if (!activeHouseIds.has(data.house_id)) return
+
       if (data.status_iuran === 'Terbayarkan') {
         totalRumahTerbayar++
-        // Calculate bill
         const usage = Math.max(0, (data.water_meter_current || 0) - (data.water_meter_past || 0))
         let total = 0
         if ((data.jenis_iuran || '').includes('Sampah')) {
@@ -54,7 +74,6 @@ export default defineEventHandler(async (event) => {
       }
     })
 
-    // Fetch kas_log entries for this period
     const kasSnap = await db.collection('kas_log')
       .where('period', '==', period)
       .get()

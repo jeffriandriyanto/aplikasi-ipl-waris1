@@ -234,6 +234,39 @@
       </div>
     </div>
 
+    <div class="glass-card overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-surface-200">
+        <h2 class="text-lg font-semibold text-surface-900">Daftar Tagihan Belum Lunas</h2>
+        <p class="text-xs text-surface-500 mt-0.5">Unduh PDF rumah terisi yang belum bayar iuran</p>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-3 items-end gap-3">
+          <div>
+            <label class="label-field">Bulan</label>
+            <select v-model="unpaidMonth" class="select-field text-sm">
+              <option v-for="m in pdfMonthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="label-field">Tahun</label>
+            <select v-model="unpaidYear" class="select-field text-sm">
+              <option v-for="y in pdfYearOptions" :key="y" :value="y">{{ y }}</option>
+            </select>
+          </div>
+          <button class="btn-primary py-2.5 h-[40px]" @click="downloadUnpaidPDF" :disabled="unpaidGenerating">
+            <svg v-if="!unpaidGenerating" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <svg v-else class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            {{ unpaidGenerating ? 'Membuat PDF...' : 'Unduh Tagihan PDF' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Cumulative Summary (All Months) -->
     <div
       v-if="cumulativeLoading"
@@ -1004,6 +1037,10 @@ const pdfMonth = ref(new Date().getMonth() + 1);
 const pdfYear = ref(new Date().getFullYear());
 const pdfGenerating = ref(false);
 
+const unpaidMonth = ref(new Date().getMonth() + 1);
+const unpaidYear = ref(new Date().getFullYear());
+const unpaidGenerating = ref(false);
+
 const pdfMonthOptions = computed(() =>
   MONTHS_ID.map((name, i) => ({ label: name, value: i + 1 })),
 );
@@ -1206,6 +1243,196 @@ async function downloadLaporanPDF() {
     toast.show("Gagal membuat laporan PDF.", "error");
   } finally {
     pdfGenerating.value = false;
+  }
+}
+
+async function downloadUnpaidPDF() {
+  unpaidGenerating.value = true;
+  try {
+    const period = `${unpaidYear.value}-${String(unpaidMonth.value).padStart(2, "0")}`;
+
+    const [housesRes, iplRes] = await Promise.all([
+      $fetch<any[]>("/api/houses", { query: { _t: Date.now() } }),
+      $fetch<{ records: any[]; isGenerated: boolean }>("/api/ipl", {
+        query: { period, _t: Date.now() },
+      }),
+    ]);
+
+    const config = await getSiteConfig();
+
+    const houseMap = new Map<string, any>();
+    housesRes.forEach((h: any) => houseMap.set(h.id, h));
+
+    const unpaidRecords = iplRes.records.filter((r) => {
+      if (r.status_iuran === "Terbayarkan") return false;
+      if (r.status_rumah !== "Ditinggali" && r.status_rumah !== "Disewakan")
+        return false;
+      const house = houseMap.get(r.house_id);
+      if (!house || house.is_active === false) return false;
+      return true;
+    });
+
+    if (unpaidRecords.length === 0) {
+      toast.show("Semua rumah aktif sudah lunas untuk periode ini!", "success");
+      return;
+    }
+
+    unpaidRecords.sort((a: any, b: any) => {
+      if (a.block === b.block) {
+        return a.house_number.localeCompare(b.house_number, undefined, {
+          numeric: true,
+        });
+      }
+      return a.block.localeCompare(b.block);
+    });
+
+    let totalNominal = 0;
+    const rows: Array<[string, string, string, string, string]> = [];
+
+    unpaidRecords.forEach((r: any, i: number) => {
+      const house = houseMap.get(r.house_id);
+      const pic = house?.pic || "-";
+      const usage = Math.max(0, r.water_meter_current - r.water_meter_past);
+      let nominal = 0;
+      if ((r.jenis_iuran || "").includes("Sampah")) {
+        nominal += config.dues_trash_flat || 25000;
+      }
+      if ((r.jenis_iuran || "").includes("Air")) {
+        const minFee = config.water_min_fee || 25000;
+        const pricePerCubic = config.water_price_per_cubic || 3500;
+        if (r.status_rumah === "Kosong" && usage === 0) {
+          // no water fee
+        } else {
+          nominal +=
+            usage <= 10 ? minFee : minFee + (usage - 10) * pricePerCubic;
+        }
+      }
+      totalNominal += nominal;
+
+      rows.push([
+        String(i + 1),
+        `${r.block} No. ${r.house_number}`,
+        pic,
+        r.jenis_iuran,
+        formatCurrency(nominal),
+      ]);
+    });
+
+    const { jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
+
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("DAFTAR TAGIHAN BELUM LUNAS", pageWidth / 2, 20, {
+      align: "center",
+    });
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      "PERIODE " +
+        MONTHS_ID[unpaidMonth.value - 1].toUpperCase() +
+        " " +
+        unpaidYear.value,
+      pageWidth / 2,
+      27,
+      { align: "center" },
+    );
+
+    doc.setFontSize(9);
+    doc.text(
+      "Perumahan Waris - Sistem Pengelolaan Iuran Warga",
+      pageWidth / 2,
+      33,
+      { align: "center" },
+    );
+
+    doc.setDrawColor(225, 29, 72);
+    doc.setLineWidth(0.5);
+    doc.line(14, 36, pageWidth - 14, 36);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(225, 29, 72);
+    doc.text(
+      `${unpaidRecords.length} rumah belum membayar iuran`,
+      14,
+      44,
+    );
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(
+      `Total tagihan: ${formatCurrency(totalNominal)}`,
+      14,
+      50,
+    );
+
+    autoTable(doc, {
+      startY: 55,
+      head: [["No", "Blok & No. Rumah", "PIC", "Jenis Iuran", "Nominal"]],
+      body: rows,
+      theme: "striped",
+      headStyles: {
+        fillColor: [225, 29, 72],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        fontSize: 8,
+      },
+      styles: {
+        fontSize: 8,
+        cellPadding: 2.5,
+        lineColor: [200, 200, 200],
+        lineWidth: 0.1,
+      },
+      columnStyles: {
+        0: { cellWidth: 10, halign: "center" },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 35 },
+        4: { cellWidth: 35, halign: "right" },
+      },
+      alternateRowStyles: { fillColor: [254, 242, 242] },
+      margin: { left: 14, right: 14 },
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || 55;
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text("TOTAL TAGIHAN:", 14, finalY + 8);
+    doc.text(formatCurrency(totalNominal), pageWidth - 14, finalY + 8, {
+      align: "right",
+    });
+
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      "Dokumen ini digenerate otomatis oleh sistem IPLKu pada " +
+        new Date().toLocaleDateString("id-ID"),
+      pageWidth / 2,
+      doc.internal.pageSize.getHeight() - 10,
+      { align: "center" },
+    );
+
+    doc.save(
+      `Tagihan_Belum_Lunas_${MONTHS_ID[unpaidMonth.value - 1]}_${unpaidYear.value}.pdf`,
+    );
+    toast.show("Daftar tagihan PDF berhasil diunduh!", "success");
+  } catch (e) {
+    console.error("Unpaid PDF generation failed", e);
+    toast.show("Gagal membuat daftar tagihan PDF.", "error");
+  } finally {
+    unpaidGenerating.value = false;
   }
 }
 </script>

@@ -11,7 +11,7 @@
           <span class="font-bold text-surface-900 text-sm tracking-tight">IPL Perumahan Waris</span>
         </div>
         <div class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-medium">
-          v1.4.1
+          v1.4.5
         </div>
       </div>
     </header>

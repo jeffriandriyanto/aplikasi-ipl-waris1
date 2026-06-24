@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     const db = getFirestoreDb()
     
     // Fetch houses from cache (10 min TTL) to avoid extra Firestore reads
-    const houses = await cachedFetch<House[]>(CACHE_KEYS.HOUSES, CACHE_TTL.HOUSES, async () => {
+    const allHouses = await cachedFetch<House[]>(CACHE_KEYS.HOUSES, CACHE_TTL.HOUSES, async () => {
       const snapshot = await db.collection('houses').get()
       const result: House[] = []
       snapshot.forEach(doc => {
@@ -31,11 +31,15 @@ export default defineEventHandler(async (event) => {
           block: data.block,
           house_number: data.house_number,
           pic: data.pic,
+          is_active: data.is_active !== false,
           created_at: null,
         })
       })
       return result
     })
+
+    // Only generate records for active houses
+    const houses = allHouses.filter(h => h.is_active !== false)
     
     // Fetch existing records for current period
     const currentRecordsSnap = await db.collection('ipl_records')

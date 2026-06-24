@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
     block: body.block,
     house_number: body.house_number,
     pic: body.pic || "-",
+    is_active: body.is_active !== false,
     created_at: body.created_at ? admin.firestore.Timestamp.fromDate(new Date(body.created_at)) : admin.firestore.FieldValue.serverTimestamp(),
   }
 
@@ -37,6 +38,7 @@ export default defineEventHandler(async (event) => {
     block: data.block,
     house_number: data.house_number,
     pic: data.pic || "",
+    is_active: data.is_active !== false,
     created_at: data.created_at ? data.created_at.toDate() : null,
   }
 })

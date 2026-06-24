@@ -84,6 +84,7 @@
         <h2 class="text-lg font-semibold text-surface-900">Daftar Rumah</h2>
         <p class="text-xs text-surface-500 mt-0.5">
           {{ houses.length }} kavling terdaftar
+          <span v-if="activeCount < houses.length" class="text-emerald-600">({{ activeCount }} aktif)</span>
         </p>
       </div>
       <div class="overflow-x-auto">
@@ -94,15 +95,29 @@
               <th>Blok</th>
               <th>No. Rumah</th>
               <th>PIC</th>
+              <th>Status</th>
               <th>Aksi</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(h, i) in houses" :key="h.id">
+            <tr v-for="(h, i) in houses" :key="h.id" :class="{ 'opacity-50': h.is_active === false }">
               <td class="text-surface-500 font-mono text-xs">{{ i + 1 }}</td>
               <td class="font-medium text-surface-900">{{ h.block }}</td>
               <td class="font-mono">{{ h.house_number }}</td>
               <td class="text-surface-600">{{ h.pic }}</td>
+              <td>
+                <button
+                  @click="toggleActive(h)"
+                  class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  :class="h.is_active !== false ? 'bg-primary' : 'bg-surface-300'"
+                  :title="h.is_active !== false ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'"
+                >
+                  <span
+                    class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-200"
+                    :class="h.is_active !== false ? 'translate-x-[18px]' : 'translate-x-[3px]'"
+                  ></span>
+                </button>
+              </td>
               <td>
                 <div class="flex items-center gap-2">
                   <button
@@ -323,6 +338,11 @@ const {
   default: () => [],
 });
 
+const activeCount = computed(() => {
+  if (!houses.value) return 0
+  return houses.value.filter(h => h.is_active !== false).length
+})
+
 const showModal = ref(false);
 const isEditMode = ref(false); // Penanda mode operasional modal
 const isSaving = ref(false);
@@ -426,6 +446,22 @@ async function handleDelete() {
     toast.show("Gagal menghapus data.", "error");
   } finally {
     isDeleting.value = false;
+  }
+}
+
+async function toggleActive(house: House) {
+  if (!house.id) return
+  const newState = house.is_active === false
+  try {
+    await authFetch("/api/houses/update", {
+      method: "PATCH",
+      body: { id: house.id, is_active: newState },
+    })
+    house.is_active = newState
+    toast.show(`Rumah ${newState ? 'diaktifkan' : 'dinonaktifkan'}.`, "success")
+  } catch (e) {
+    console.error(e)
+    toast.show("Gagal mengubah status rumah.", "error")
   }
 }
 </script>

@@ -5,13 +5,33 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event);
   const db = getFirestoreDb();
 
-  // Validasi ID dokumen dan data minimal yang wajib dikirim
-  if (!body.id || !body.pic) {
+  // Validasi ID dokumen
+  if (!body.id) {
     throw createError({
       statusCode: 400,
-      statusMessage: "House ID and PIC are required",
+      statusMessage: "House ID is required",
     });
   }
+
+  // Build update data dynamically
+  const updateData: Record<string, any> = {};
+
+  if (body.pic !== undefined) {
+    updateData.pic = body.pic;
+  }
+
+  if (body.is_active !== undefined) {
+    updateData.is_active = !!body.is_active;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: "No fields to update",
+    });
+  }
+
+  updateData.updated_at = new Date();
 
   const houseRef = db.collection("houses").doc(body.id);
   const docSnap = await houseRef.get();
@@ -22,12 +42,6 @@ export default defineEventHandler(async (event) => {
       statusMessage: "House record not found",
     });
   }
-
-  // Lakukan partial update hanya pada field PIC (dan updated_at jika dibutuhkan)
-  const updateData = {
-    pic: body.pic,
-    updated_at: new Date(), // Opsional: jejak audit perubahan data
-  };
 
   await houseRef.update(updateData);
 
@@ -62,6 +76,7 @@ export default defineEventHandler(async (event) => {
     block: data.block,
     house_number: data.house_number,
     pic: data.pic,
+    is_active: data.is_active !== false,
     created_at: parseFirestoreDate(data.created_at),
   };
 });

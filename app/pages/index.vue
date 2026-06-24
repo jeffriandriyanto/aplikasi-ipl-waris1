@@ -269,7 +269,7 @@ const { data: houses } = useFetch<House[]>('/api/houses', { default: () => [] })
 const availableBlocks = computed(() => {
   if (!houses.value || houses.value.length === 0) return []
   const blocks = new Set<string>()
-  houses.value.forEach((h) => blocks.add(h.block))
+  houses.value.filter(h => h.is_active !== false).forEach((h) => blocks.add(h.block))
   return Array.from(blocks).sort()
 })
 

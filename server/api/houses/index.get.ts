@@ -28,6 +28,7 @@ export default defineEventHandler(async () => {
         block: data.block,
         house_number: data.house_number,
         pic: data.pic,
+        is_active: data.is_active !== false,
         created_at: formattedDate,
       })
     })

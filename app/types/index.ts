@@ -11,6 +11,7 @@ export interface House {
   block: string
   house_number: string
   pic: string
+  is_active?: boolean
   created_at: Date | null
 }
 

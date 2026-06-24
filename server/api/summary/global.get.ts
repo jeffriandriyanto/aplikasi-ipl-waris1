@@ -1,6 +1,6 @@
 import { getFirestoreDb } from '../../utils/firebase'
 import { cachedFetch, CACHE_KEYS, CACHE_TTL } from '../../utils/cache'
-import type { SiteConfig } from '~/types'
+import type { SiteConfig, House } from '~/types'
 import { DEFAULT_SITE_CONFIG, OCCUPIED_STATUSES } from '~/types'
 
 interface MonthTrend {
@@ -43,15 +43,37 @@ export default defineEventHandler(async () => {
       return configSnap.exists ? (configSnap.data() as SiteConfig) : DEFAULT_SITE_CONFIG
     })
 
+    // Fetch houses for active filtering
+    const houses = await cachedFetch<House[]>(CACHE_KEYS.HOUSES, CACHE_TTL.HOUSES, async () => {
+      const snapshot = await db.collection('houses').get()
+      const result: House[] = []
+      snapshot.forEach(doc => {
+        const data = doc.data()
+        result.push({
+          id: doc.id,
+          block: data.block,
+          house_number: data.house_number,
+          pic: data.pic,
+          is_active: data.is_active !== false,
+          created_at: null,
+        })
+      })
+      return result
+    })
+
+    const activeHouseIds = new Set(houses.filter(h => h.is_active !== false).map(h => h.id))
+
     const iplSnap = await db.collection('ipl_records').get()
     const kasSnap = await db.collection('kas_log').get()
 
     let globalPemasukan = 0
     let globalPengeluaran = 0
 
+    // Group IPL by period, filtering by active houses
     const iplByPeriod = new Map<string, any[]>()
     iplSnap.forEach(doc => {
       const data = doc.data()
+      if (!activeHouseIds.has(data.house_id)) return
       const period = data.period
       if (!iplByPeriod.has(period)) iplByPeriod.set(period, [])
       iplByPeriod.get(period)!.push(data)
