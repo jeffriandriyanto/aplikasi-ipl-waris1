@@ -13,7 +13,7 @@
     </div>
 
     <template v-else-if="globalSummary">
-      <div class="grid grid-cols-2 gap-3 mb-4">
+      <!-- <div class="grid grid-cols-2 gap-3 mb-4">
         <div class="stat-card">
           <div class="flex items-center gap-2 mb-2">
             <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -85,9 +85,9 @@
             <p class="text-xs text-surface-400">Belum ada pengeluaran periode ini.</p>
           </div>
         </div>
-      </div>
+      </div> -->
 
-      <div class="glass-card mb-4 overflow-hidden">
+      <!-- <div class="glass-card mb-4 overflow-hidden">
         <div class="px-4 py-3 border-b border-surface-200">
           <h2 class="text-sm font-semibold text-surface-900">Transaksi Terbaru</h2>
           <p class="text-[10px] text-surface-500 mt-0.5">Maks. 5 transaksi terakhir</p>
@@ -106,7 +106,7 @@
             </span>
           </div>
         </div>
-      </div>
+      </div> -->
 
       <div class="glass-card mb-6 overflow-hidden">
         <div class="px-5 py-4 border-b border-surface-200">
@@ -414,6 +414,6 @@ async function searchBill() {
 }
 
 onMounted(() => {
-  loadGlobalSummary()
+  // loadGlobalSummary()
 })
 </script>
