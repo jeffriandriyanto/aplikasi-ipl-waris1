@@ -5,14 +5,14 @@
       <p class="text-sm text-surface-500 mt-1">Informasi kas warga Perumahan Waris</p>
     </div>
 
-    <div v-if="globalLoading" class="flex items-center justify-center py-12">
+    <!-- <div v-if="globalLoading" class="flex items-center justify-center py-12">
       <svg class="w-6 h-6 text-primary animate-spin" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
       </svg>
-    </div>
+    </div> -->
 
-    <template v-else-if="globalSummary">
+    <!-- <template v-else-if="globalSummary"> -->
       <!-- <div class="grid grid-cols-2 gap-3 mb-4">
         <div class="stat-card">
           <div class="flex items-center gap-2 mb-2">
@@ -191,7 +191,7 @@
           </div>
         </div>
       </div>
-    </template>
+    <!-- </template> -->
   </div>
 </template>
 
