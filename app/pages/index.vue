@@ -1,9 +1,9 @@
 <template>
   <div class="mobile-container">
-    <div class="mb-6">
+    <!-- <div class="mb-6">
       <h1 class="text-xl font-bold text-surface-900">Ringkasan Keuangan</h1>
       <p class="text-sm text-surface-500 mt-1">Informasi kas warga Perumahan Waris</p>
-    </div>
+    </div> -->
 
     <!-- <div v-if="globalLoading" class="flex items-center justify-center py-12">
       <svg class="w-6 h-6 text-primary animate-spin" fill="none" viewBox="0 0 24 24">
