@@ -32,6 +32,8 @@ export interface IplRecord {
   water_meter_past: number
   water_meter_current: number
   amount_paid?: number
+  saldo_awal?: number    // Carry-over dari bulan sebelumnya (+ kredit, - utang)
+  saldo_akhir?: number   // saldo_awal + amount_paid - tagihan
   updated_at: Date | null
 }
 
@@ -76,6 +78,15 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
   dues_trash_flat: 25000,
   water_min_fee: 25000,
   water_price_per_cubic: 3500,
+}
+
+export interface HouseLedgerEntry {
+  period: string
+  tagihan: number
+  amount_paid: number
+  saldo_awal: number
+  saldo_akhir: number
+  status_iuran: PaymentStatus
 }
 
 export type KasType = 'masuk' | 'keluar'

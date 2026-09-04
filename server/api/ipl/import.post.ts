@@ -4,11 +4,6 @@ import { closingBalance } from '../../utils/billing'
 import { generateIplRecordId, generateHouseId } from '~/types'
 import type { SiteConfig } from '~/types'
 
-const PERIOD_REGEX = /^\d{4}-\d{2}$/
-const VALID_HOUSE_STATUSES = new Set(['Ditinggali', 'Disewakan', 'Kosong', ''])
-const VALID_DUES_TYPES = new Set(['Air & Sampah', 'Air'])
-const VALID_PAYMENT_STATUSES = new Set(['Terbayarkan', 'Belum Terbayarkan'])
-
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const records = body.records || []
@@ -40,28 +35,28 @@ export default defineEventHandler(async (event) => {
     const batch = db.batch()
 
     chunk.forEach((record: any) => {
+      // Minimal validation: only need block, house_number, period
       if (!record.block || !record.house_number || !record.period) return
-      if (typeof record.block !== 'string' || typeof record.house_number !== 'string') return
-      if (!PERIOD_REGEX.test(record.period)) return
-      if (!VALID_HOUSE_STATUSES.has(record.status_rumah)) return
-      if (!VALID_DUES_TYPES.has(record.jenis_iuran)) return
-      if (!VALID_PAYMENT_STATUSES.has(record.status_iuran)) return
-      if (typeof record.water_meter_past !== 'number' || typeof record.water_meter_current !== 'number') return
-      if (record.water_meter_past < 0 || record.water_meter_current < 0) return
 
       const houseId = record.house_id || generateHouseId(record.block, record.house_number)
       const id = generateIplRecordId(record.period, record.block, record.house_number)
       const ref = db.collection('ipl_records').doc(id)
 
+      const statusRumah = record.status_rumah || ''
+      const jenisIuran = record.jenis_iuran || 'Air & Sampah'
+      const statusIuran = record.status_iuran || 'Belum Terbayarkan'
+      const waterMeterPast = typeof record.water_meter_past === 'number' ? record.water_meter_past : 0
+      const waterMeterCurrent = typeof record.water_meter_current === 'number' ? record.water_meter_current : 0
+      const amountPaid = typeof record.amount_paid === 'number' ? record.amount_paid : 0
       const saldoAwal = typeof record.saldo_awal === 'number' ? record.saldo_awal : 0
 
-      // Calculate saldo_akhir using server-side billing
+      // Calculate saldo_akhir
       const saldoAkhir = closingBalance({
-        status_rumah: record.status_rumah,
-        jenis_iuran: record.jenis_iuran,
-        water_meter_past: record.water_meter_past,
-        water_meter_current: record.water_meter_current,
-        amount_paid: record.amount_paid,
+        status_rumah: statusRumah,
+        jenis_iuran: jenisIuran,
+        water_meter_past: waterMeterPast,
+        water_meter_current: waterMeterCurrent,
+        amount_paid: amountPaid,
         saldo_awal: saldoAwal,
       }, config)
 
@@ -70,21 +65,21 @@ export default defineEventHandler(async (event) => {
         house_id: houseId,
         block: String(record.block).trim(),
         house_number: String(record.house_number).trim(),
-        status_rumah: record.status_rumah,
-        jenis_iuran: record.jenis_iuran,
-        status_iuran: record.status_iuran,
-        water_meter_past: Math.max(0, Math.round(record.water_meter_past)),
-        water_meter_current: Math.max(0, Math.round(record.water_meter_current)),
+        status_rumah: statusRumah,
+        jenis_iuran: jenisIuran,
+        status_iuran: statusIuran,
+        water_meter_past: Math.max(0, Math.round(waterMeterPast)),
+        water_meter_current: Math.max(0, Math.round(waterMeterCurrent)),
         saldo_awal: Math.round(saldoAwal),
         saldo_akhir: Math.round(saldoAkhir),
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       }
 
       // Belum Terbayarkan = amount_paid harus 0
-      if (record.status_iuran === 'Belum Terbayarkan') {
+      if (statusIuran === 'Belum Terbayarkan') {
         data.amount_paid = 0
-      } else if (record.amount_paid != null && typeof record.amount_paid === 'number' && record.amount_paid >= 0) {
-        data.amount_paid = Math.round(record.amount_paid)
+      } else {
+        data.amount_paid = Math.max(0, Math.round(amountPaid))
       }
 
       batch.set(ref, data)

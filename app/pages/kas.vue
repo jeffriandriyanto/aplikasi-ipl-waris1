@@ -158,15 +158,10 @@
     </div>
 
     <div class="glass-card overflow-hidden mb-6">
-      <div class="px-6 py-4 border-b border-surface-200">
+      <div class="p-6 space-y-4">
         <h2 class="text-lg font-semibold text-surface-900">
           Unduh Laporan Kas Bulanan
         </h2>
-        <p class="text-xs text-surface-500 mt-0.5">
-          Arsip PDF rekapitulasi kas warga
-        </p>
-      </div>
-      <div class="p-6 space-y-4">
         <div class="grid grid-cols-3 items-end gap-3">
           <div>
             <label class="label-field">Bulan</label>
@@ -235,39 +230,108 @@
     </div>
 
     <div class="glass-card overflow-hidden mb-6">
-      <div class="px-6 py-4 border-b border-surface-200">
-        <h2 class="text-lg font-semibold text-surface-900">Daftar Tagihan Belum Lunas</h2>
-        <p class="text-xs text-surface-500 mt-0.5">Unduh PDF rumah terisi yang belum bayar iuran</p>
-      </div>
       <div class="p-6 space-y-4">
+        <h2 class="text-lg font-semibold text-surface-900">
+          Daftar Tagihan Belum Lunas
+        </h2>
         <div class="grid grid-cols-3 items-end gap-3">
           <div>
             <label class="label-field">Bulan</label>
             <select v-model="unpaidMonth" class="select-field text-sm">
-              <option v-for="m in pdfMonthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
+              <option
+                v-for="m in pdfMonthOptions"
+                :key="m.value"
+                :value="m.value"
+              >
+                {{ m.label }}
+              </option>
             </select>
           </div>
           <div>
             <label class="label-field">Tahun</label>
             <select v-model="unpaidYear" class="select-field text-sm">
-              <option v-for="y in pdfYearOptions" :key="y" :value="y">{{ y }}</option>
+              <option v-for="y in pdfYearOptions" :key="y" :value="y">
+                {{ y }}
+              </option>
             </select>
           </div>
-          <button class="btn-primary py-2.5 h-[40px]" @click="downloadUnpaidPDF" :disabled="unpaidGenerating">
-            <svg v-if="!unpaidGenerating" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <button
+            class="btn-primary py-2.5 h-[40px]"
+            @click="downloadUnpaidPDF"
+            :disabled="unpaidGenerating"
+          >
+            <svg
+              v-if="!unpaidGenerating"
+              class="w-4 h-4 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
             </svg>
-            <svg v-else class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            <svg
+              v-else
+              class="w-4 h-4 mr-2 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
             </svg>
-            {{ unpaidGenerating ? 'Membuat PDF...' : 'Unduh Tagihan PDF' }}
+            {{ unpaidGenerating ? "Membuat PDF..." : "Unduh Tagihan PDF" }}
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Cumulative Summary (All Months) -->
+    <div v-if="!cumulative && !cumulativeLoading" class="glass-card mb-6 p-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-semibold text-surface-900">
+            Rekap Total Semua Bulan
+          </h2>
+          <p class="text-[10px] text-surface-500 mt-0.5">
+            Akumulasi dari semua periode
+          </p>
+        </div>
+        <button
+          class="btn-secondary text-xs px-3 py-1.5"
+          @click="loadCumulative"
+        >
+          <svg
+            class="w-3.5 h-3.5 mr-1 inline"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          Muat Rekap
+        </button>
+      </div>
+    </div>
+
     <div
       v-if="cumulativeLoading"
       class="flex items-center justify-center py-8 mb-6"
@@ -421,7 +485,7 @@
             d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
           />
         </svg>
-        Muat Data
+        <span class="text-xs">Muat Data</span>
       </button>
     </div>
 
@@ -888,7 +952,7 @@ async function loadData() {
     const [config, iplRes, kasRes] = await Promise.all([
       getSiteConfig(),
       $fetch<{ records: IplRecord[]; isGenerated: boolean }>("/api/ipl", {
-        query: { period: selectedPeriod.value, _t: Date.now() },
+        query: { period: selectedPeriod.value },
       }),
       authFetch<KasLogEntry[]>("/api/kas", {
         query: { period: selectedPeriod.value },
@@ -911,9 +975,7 @@ async function loadData() {
 async function loadCumulative() {
   cumulativeLoading.value = true;
   try {
-    cumulative.value = await $fetch<CumulativeData>("/api/summary/all", {
-      query: { _t: Date.now() },
-    });
+    cumulative.value = await $fetch<CumulativeData>("/api/summary/all");
   } catch {
     cumulative.value = null;
   } finally {
@@ -922,7 +984,7 @@ async function loadCumulative() {
 }
 
 onMounted(() => {
-  loadCumulative();
+  // Cumulative summary is now lazy-loaded via button
 });
 
 async function saveEntry() {
@@ -1059,7 +1121,7 @@ async function downloadLaporanPDF() {
     const [config, iplRes, kasRes] = await Promise.all([
       getSiteConfig(),
       $fetch<{ records: IplRecord[]; isGenerated: boolean }>("/api/ipl", {
-        query: { period, _t: Date.now() },
+        query: { period },
       }),
       authFetch<any[]>("/api/kas", {
         query: { period },
@@ -1087,7 +1149,7 @@ async function downloadLaporanPDF() {
           `${r.block} No. ${r.house_number}`,
           "Iuran",
           r.jenis_iuran,
-          (r as any).description || "-", 
+          (r as any).description || "-",
           formatCurrency(nominal),
         ]);
       }
@@ -1252,9 +1314,9 @@ async function downloadUnpaidPDF() {
     const period = `${unpaidYear.value}-${String(unpaidMonth.value).padStart(2, "0")}`;
 
     const [housesRes, iplRes] = await Promise.all([
-      $fetch<any[]>("/api/houses", { query: { _t: Date.now() } }),
+      $fetch<any[]>("/api/houses"),
       $fetch<{ records: any[]; isGenerated: boolean }>("/api/ipl", {
-        query: { period, _t: Date.now() },
+        query: { period },
       }),
     ]);
 
@@ -1361,20 +1423,12 @@ async function downloadUnpaidPDF() {
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(225, 29, 72);
-    doc.text(
-      `${unpaidRecords.length} rumah belum membayar iuran`,
-      14,
-      44,
-    );
+    doc.text(`${unpaidRecords.length} rumah belum membayar iuran`, 14, 44);
 
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text(
-      `Total tagihan: ${formatCurrency(totalNominal)}`,
-      14,
-      50,
-    );
+    doc.text(`Total tagihan: ${formatCurrency(totalNominal)}`, 14, 50);
 
     autoTable(doc, {
       startY: 55,

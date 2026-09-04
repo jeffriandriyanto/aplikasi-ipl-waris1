@@ -35,7 +35,7 @@ interface GlobalSummary {
 }
 
 export default defineEventHandler(async () => {
-  return cachedFetch('summary:global', CACHE_TTL.IPL_RECORDS, async () => {
+  return cachedFetch('summary:global', CACHE_TTL.SUMMARY, async () => {
     const db = getFirestoreDb()
 
     const configData = await cachedFetch<SiteConfig>(CACHE_KEYS.CONFIG, CACHE_TTL.CONFIG, async () => {

@@ -2,6 +2,9 @@ import type { IplRecord, SiteConfig } from '~/types'
 
 export function useBilling() {
   function calculateTotal(r: IplRecord, config: SiteConfig): number {
+    // Rumah Kosong tidak ada tagihan
+    if (r.status_rumah === 'Kosong') return 0
+
     const usage = Math.max(0, r.water_meter_current - r.water_meter_past)
     let total = 0
 
@@ -32,9 +35,18 @@ export function useBilling() {
   }
 
   function overpayment(r: IplRecord, config: SiteConfig): number {
+    return closingBalance(r, config)
+  }
+
+  function effectivePaid(r: IplRecord): number {
+    return (r.saldo_awal ?? 0) + (r.amount_paid ?? 0)
+  }
+
+  function closingBalance(r: IplRecord, config: SiteConfig): number {
     const bill = calculateTotal(r, config)
-    const paid = r.amount_paid ?? bill
-    return paid - bill
+    const saldoAwal = r.saldo_awal ?? 0
+    const paid = r.amount_paid ?? 0
+    return saldoAwal + paid - bill
   }
 
   function formatCurrency(n: number): string {
@@ -80,6 +92,8 @@ export function useBilling() {
     calculateTotal,
     usageValue,
     overpayment,
+    effectivePaid,
+    closingBalance,
     formatCurrency,
     statusBadge,
     matchHouseNumber,

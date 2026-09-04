@@ -330,7 +330,7 @@ async function loadData() {
     const [config, res] = await Promise.all([
       getSiteConfig(),
       $fetch<{ records: IplRecord[]; isGenerated: boolean }>("/api/ipl", {
-        query: { period: selectedPeriod.value, _t: Date.now() },
+        query: { period: selectedPeriod.value },
       }),
     ]);
 

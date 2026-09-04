@@ -1,6 +1,7 @@
 import { getFirestoreDb } from '../../utils/firebase'
 import { cachedFetch, CACHE_KEYS, CACHE_TTL } from '../../utils/cache'
-import type { IplRecord, HouseStatus, DuesType, PaymentStatus, House } from '~/types'
+import { calculateTotal, closingBalance } from '../../utils/billing'
+import type { IplRecord, HouseStatus, DuesType, PaymentStatus, House, SiteConfig } from '~/types'
 
 function getPreviousPeriod(period: string): string {
   const [year, month] = period.split('-').map(Number)
@@ -50,14 +51,20 @@ export default defineEventHandler(async (event) => {
     const currentMap = new Map<string, any>()
     currentRecordsSnap.forEach(doc => currentMap.set(doc.data().house_id, { id: doc.id, ...doc.data() }))
     
-    // Only fetch previous records if we actually need them (some houses missing from current)
-    let prevMap = new Map<string, any>()
-    if (currentRecordsSnap.size < houses.length) {
-      const prevPeriod = getPreviousPeriod(period)
-      const prevRecordsSnap = await db.collection('ipl_records')
-        .where('period', '==', prevPeriod)
-        .get()
-      prevRecordsSnap.forEach(doc => prevMap.set(doc.data().house_id, doc.data()))
+    // Always fetch previous period records for saldo carry-over
+    const prevPeriod = getPreviousPeriod(period)
+    const prevRecordsSnap = await db.collection('ipl_records')
+      .where('period', '==', prevPeriod)
+      .get()
+    const prevMap = new Map<string, any>()
+    prevRecordsSnap.forEach(doc => prevMap.set(doc.data().house_id, doc.data()))
+
+    // Fetch site config for billing calculation
+    const configDoc = await db.collection('config').doc('site').get()
+    const config: SiteConfig = configDoc.exists ? configDoc.data() as SiteConfig : {
+      dues_trash_flat: 25000,
+      water_min_fee: 25000,
+      water_price_per_cubic: 3500,
     }
     
     const mergedRecords: IplRecord[] = []
@@ -69,7 +76,10 @@ export default defineEventHandler(async (event) => {
       if (currentMap.has(houseId)) {
         // Record already exists for this month, use it
         const currentData = currentMap.get(houseId)
-        mergedRecords.push({
+        const prev = prevMap.get(houseId)
+        const saldoAwal = prev?.saldo_akhir ?? 0
+
+        const record: IplRecord = {
           id: currentData.id,
           period: currentData.period,
           house_id: currentData.house_id,
@@ -81,12 +91,18 @@ export default defineEventHandler(async (event) => {
           water_meter_past: currentData.water_meter_past,
           water_meter_current: currentData.water_meter_current,
           amount_paid: currentData.amount_paid ?? undefined,
+          saldo_awal: saldoAwal,
+          saldo_akhir: undefined, // will be calculated below
           updated_at: currentData.updated_at ? currentData.updated_at.toDate() : null,
-        })
+        }
+        record.saldo_akhir = closingBalance(record, config)
+        mergedRecords.push(record)
       } else {
         // Record doesn't exist yet, generate a MOCK object
         const prev = prevMap.get(houseId)
-        mergedRecords.push({
+        const saldoAwal = prev?.saldo_akhir ?? 0
+
+        const record: IplRecord = {
           period,
           house_id: houseId,
           block: house.block,
@@ -97,8 +113,12 @@ export default defineEventHandler(async (event) => {
           water_meter_past: prev?.water_meter_current || 0,
           water_meter_current: 0,
           amount_paid: undefined,
+          saldo_awal: saldoAwal,
+          saldo_akhir: undefined,
           updated_at: null,
-        })
+        }
+        record.saldo_akhir = closingBalance(record, config)
+        mergedRecords.push(record)
       }
     })
     

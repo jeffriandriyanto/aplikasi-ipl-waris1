@@ -28,15 +28,9 @@ import {
   DEFAULT_SITE_CONFIG,
 } from "~/types";
 
-/**
- * Composable for all Firestore CRUD operations.
- */
 export function useDatabase() {
   const { db } = useFirebase();
-
-  // =====================
-  // HOUSES CRUD
-  // =====================
+  const { calculateTotal } = useBilling();
 
   async function getHouses(): Promise<House[]> {
     const snapshot = await getDocs(
@@ -79,10 +73,6 @@ export function useDatabase() {
     await deleteDoc(doc(db.value, "houses", id));
   }
 
-  // =====================
-  // IPL RECORDS CRUD
-  // =====================
-
   async function getIplRecords(period: string): Promise<IplRecord[]> {
     const snapshot = await getDocs(
       query(
@@ -99,9 +89,6 @@ export function useDatabase() {
     })) as IplRecord[];
   }
 
-  /**
-   * Auto-generate IPL records for a new period.
-   */
   async function generateIplRecords(period: string): Promise<IplRecord[]> {
     const houses = await getHouses();
     const previousPeriod = getPreviousPeriod(period);
@@ -133,9 +120,6 @@ export function useDatabase() {
     });
   }
 
-  /**
-   * Batch save IPL records using Firestore writeBatch().
-   */
   async function batchSaveIplRecords(records: IplRecord[]): Promise<void> {
     const batch = writeBatch(db.value);
 
@@ -164,49 +148,6 @@ export function useDatabase() {
     await batch.commit();
   }
 
-  // =====================
-  // DYNAMIC PRICING ENGINE
-  // =====================
-
-  /**
-   * Universal function to calculate bill based on dynamic master data
-   */
-  function calculateIplTotal(record: IplRecord, config: SiteConfig): number {
-    const usage = Math.max(
-      0,
-      record.water_meter_current - record.water_meter_past,
-    );
-    let total = 0;
-
-    // 1. Biaya Sampah
-    if (record.jenis_iuran.includes("Sampah")) {
-      total += config.dues_trash_flat || 25000;
-    }
-
-    // 2. Biaya Air Progresif
-    if (record.jenis_iuran.includes("Air")) {
-      const minFee = config.water_min_fee || 25000;
-      const pricePerCubic = config.water_price_per_cubic || 3500;
-
-      // Bebas biaya air bulanan jika benar-benar kosong dan nihil pemakaian
-      if (record.status_rumah === "Kosong" && usage === 0) {
-        // Biaya 0
-      } else {
-        if (usage <= 10) {
-          total += minFee;
-        } else {
-          total += minFee + (usage - 10) * pricePerCubic;
-        }
-      }
-    }
-
-    return total;
-  }
-
-  // =====================
-  // DASHBOARD STATS
-  // =====================
-
   function computeStats(
     records: IplRecord[],
     config: SiteConfig,
@@ -217,9 +158,8 @@ export function useDatabase() {
     const occupiedHouses = new Set<string>();
 
     records.forEach((r) => {
-      // Perhitungan menggunakan Engine Harga Dinamis
       if (r.status_iuran === "Terbayarkan") {
-        totalKasMasuk += calculateIplTotal(r, config);
+        totalKasMasuk += calculateTotal(r, config);
         totalPaid++;
       } else {
         totalUnpaid++;
@@ -238,10 +178,6 @@ export function useDatabase() {
     };
   }
 
-  // =====================
-  // CONFIG
-  // =====================
-
   async function getSiteConfig(): Promise<SiteConfig> {
     try {
       const config = await $fetch<SiteConfig>("/api/config");
@@ -252,13 +188,9 @@ export function useDatabase() {
     }
   }
 
-  // =====================
-  // HELPERS
-  // =====================
-
   function getPreviousPeriod(period: string): string {
     const [year, month] = period.split('-').map(Number)
-    const prevDate = new Date(year!, (month || 1) - 2, 1) // month is 0-indexed in JS
+    const prevDate = new Date(year!, (month || 1) - 2, 1)
     return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
   }
 
@@ -306,8 +238,6 @@ export function useDatabase() {
     generateIplRecords,
     batchSaveIplRecords,
 
-    // Gunakan ini di komponen agar rumusnya konsisten se-aplikasi
-    calculateIplTotal,
     computeStats,
 
     getSiteConfig,

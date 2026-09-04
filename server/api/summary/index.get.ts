@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Period is required' })
   }
 
-  return cachedFetch(`summary:${period}`, CACHE_TTL.IPL_RECORDS, async () => {
+  return cachedFetch(`summary:${period}`, CACHE_TTL.SUMMARY, async () => {
     const db = getFirestoreDb()
 
     const configData = await cachedFetch<SiteConfig>(CACHE_KEYS.CONFIG, CACHE_TTL.CONFIG, async () => {

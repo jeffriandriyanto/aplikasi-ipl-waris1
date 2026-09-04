@@ -458,6 +458,7 @@ async function toggleActive(house: House) {
       body: { id: house.id, is_active: newState },
     })
     house.is_active = newState
+    await refresh()
     toast.show(`Rumah ${newState ? 'diaktifkan' : 'dinonaktifkan'}.`, "success")
   } catch (e) {
     console.error(e)

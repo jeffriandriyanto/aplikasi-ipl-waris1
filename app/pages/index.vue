@@ -188,6 +188,41 @@
                 <p class="font-mono text-surface-800 text-sm">{{ r.water_meter_past }} -> {{ r.water_meter_current }}</p>
               </div>
             </div>
+
+            <!-- Saldo Section -->
+            <div class="mt-3 pt-3 border-t border-surface-100">
+              <div class="flex items-center justify-between text-xs mb-1">
+                <span class="text-surface-400">Saldo Sebelumnya</span>
+                <span class="font-mono font-medium" :class="getSaldoClass(r.saldo_awal ?? 0)">
+                  {{ formatCurrency(r.saldo_awal ?? 0) }}
+                </span>
+              </div>
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="text-surface-400">Saldo Saat Ini</span>
+                <span class="font-mono font-bold" :class="getSaldoClass(r.saldo_akhir ?? 0)">
+                  {{ formatCurrency(r.saldo_akhir ?? 0) }}
+                </span>
+              </div>
+
+              <!-- Warning: Ada tunggakan -->
+              <div v-if="(r.saldo_akhir ?? 0) < 0"
+                   class="flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <span>Ada tunggakan sebesar <strong>{{ formatCurrency(Math.abs(r.saldo_akhir ?? 0)) }}</strong></span>
+              </div>
+
+              <!-- Info: Ada kelebihan bayar -->
+              <div v-else-if="(r.saldo_akhir ?? 0) > 0"
+                   class="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Ada kelebihan bayar sebesar <strong>{{ formatCurrency(r.saldo_akhir ?? 0) }}</strong></span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -272,6 +307,12 @@ const availableBlocks = computed(() => {
   houses.value.filter(h => h.is_active !== false).forEach((h) => blocks.add(h.block))
   return Array.from(blocks).sort()
 })
+
+function getSaldoClass(value: number): string {
+  if (value > 0) return "text-emerald-600"
+  if (value < 0) return "text-rose-600"
+  return "text-surface-400"
+}
 
 const filteredRecords = computed(() => {
   if (!hasLoaded.value) return []
@@ -377,9 +418,7 @@ const donutChartOptions = {
 async function loadGlobalSummary() {
   globalLoading.value = true
   try {
-    globalSummary.value = await $fetch<GlobalSummaryData>('/api/summary/global', {
-      query: { _t: Date.now() },
-    })
+    globalSummary.value = await $fetch<GlobalSummaryData>('/api/summary/global')
     await nextTick()
     chartReady.value = true
   } catch (e) {
@@ -400,7 +439,7 @@ async function searchBill() {
     const [config, res] = await Promise.all([
       getSiteConfig(),
       $fetch<{ records: IplRecord[]; isGenerated: boolean }>('/api/ipl', {
-        query: { period: getCurrentPeriod(), _t: Date.now() },
+        query: { period: getCurrentPeriod() },
       }),
     ])
     if (config) siteConfig.value = config

@@ -7,7 +7,10 @@ const PROTECTED_WRITE_PREFIXES = [
   '/api/houses/update',
   '/api/houses/',
   '/api/ipl/sync',
+  '/api/ipl/import',
+  '/api/ipl/delete-period',
   '/api/ipl/temp-bulk',
+  '/api/ipl/recalculate',
   '/api/kas',
   '/api/config',
 ]

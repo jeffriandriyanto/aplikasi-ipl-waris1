@@ -26,19 +26,14 @@ export default defineEventHandler(async (event) => {
 
   await db.collection('houses').doc(id).set(houseData)
 
-  // Invalidate cache
   invalidateCache(CACHE_KEYS.HOUSES)
-
-  // Fetch and return the newly created document data to allow immediate reactive array update
-  const createdDoc = await db.collection('houses').doc(id).get()
-  const data = createdDoc.data()!
   
   return {
-    id: createdDoc.id,
-    block: data.block,
-    house_number: data.house_number,
-    pic: data.pic || "",
-    is_active: data.is_active !== false,
-    created_at: data.created_at ? data.created_at.toDate() : null,
+    id,
+    block: houseData.block,
+    house_number: houseData.house_number,
+    pic: houseData.pic,
+    is_active: houseData.is_active,
+    created_at: body.created_at ? new Date(body.created_at) : new Date(),
   }
 })
