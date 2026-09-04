@@ -226,6 +226,80 @@
           </div>
         </div>
       </div>
+
+      <!-- Riwayat Pembayaran -->
+      <div v-if="hasLoaded && filteredRecords.length > 0" class="glass-card mb-6 overflow-hidden">
+        <div class="px-5 py-4 border-b border-surface-200">
+          <h2 class="text-base font-semibold text-surface-900">Riwayat Pembayaran</h2>
+          <p class="text-xs text-surface-500 mt-0.5">History tagihan dan pembayaran</p>
+        </div>
+
+        <div v-if="isLoadingHistory" class="flex items-center justify-center py-12">
+          <div class="flex flex-col items-center gap-3">
+            <svg class="w-6 h-6 text-primary animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <p class="text-xs text-surface-500">Memuat riwayat...</p>
+          </div>
+        </div>
+
+        <div v-else-if="historyRecords.length === 0" class="text-center py-8">
+          <p class="text-xs text-surface-400">Belum ada riwayat pembayaran.</p>
+        </div>
+
+        <template v-else>
+          <!-- Summary -->
+          <div class="px-5 py-3 bg-surface-50 border-b border-surface-200">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-surface-500">Total {{ historyRecords.length }} bulan tercatat</span>
+              <span v-if="historyTunggakan > 0" class="text-xs font-semibold text-rose-600">
+                Tunggakan: {{ formatCurrency(historyTunggakan) }}
+              </span>
+              <span v-else class="text-xs font-semibold text-emerald-600">
+                Tidak ada tunggakan
+              </span>
+            </div>
+          </div>
+
+          <!-- History List -->
+          <div class="divide-y divide-surface-100">
+            <div v-for="(hr, i) in historyRecords" :key="i"
+                 class="px-5 py-3"
+                 :class="hr.saldo_akhir < 0 ? 'bg-rose-50/50' : ''">
+              <div class="flex items-center justify-between mb-2">
+                <span class="font-medium text-surface-900 text-sm">{{ formatPeriodLabel(hr.period) }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                      :class="hr.status_iuran === 'Terbayarkan' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">
+                  {{ hr.status_iuran === 'Terbayarkan' ? 'Lunas' : 'Belum' }}
+                </span>
+              </div>
+              <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                <div>
+                  <span class="text-surface-400">Tagihan</span>
+                  <p class="font-mono font-medium text-surface-800">{{ formatCurrency(hr.tagihan) }}</p>
+                </div>
+                <div>
+                  <span class="text-surface-400">Meter Air</span>
+                  <p class="font-mono text-surface-800">{{ hr.water_meter_past }} → {{ hr.water_meter_current }}</p>
+                </div>
+                <div>
+                  <span class="text-surface-400">Dibayar</span>
+                  <p class="font-mono font-medium" :class="hr.amount_paid > 0 ? 'text-emerald-600' : 'text-surface-400'">
+                    {{ formatCurrency(hr.amount_paid) }}
+                  </p>
+                </div>
+                <div>
+                  <span class="text-surface-400">Saldo</span>
+                  <p class="font-mono font-bold" :class="getSaldoClass(hr.saldo_akhir)">
+                    {{ formatCurrency(hr.saldo_akhir) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
     <!-- </template> -->
   </div>
 </template>
@@ -299,6 +373,22 @@ const searchHouseNumber = ref('')
 const lastSearchedBlock = ref('')
 const lastSearchedHouseNumber = ref('')
 
+interface HistoryRecord {
+  period: string
+  status_rumah: string
+  jenis_iuran: string
+  water_meter_past: number
+  water_meter_current: number
+  amount_paid: number
+  saldo_awal: number
+  saldo_akhir: number
+  status_iuran: string
+  tagihan: number
+}
+
+const historyRecords = ref<HistoryRecord[]>([])
+const isLoadingHistory = ref(false)
+
 const { data: houses } = useFetch<House[]>('/api/houses', { default: () => [] })
 
 const availableBlocks = computed(() => {
@@ -313,6 +403,12 @@ function getSaldoClass(value: number): string {
   if (value < 0) return "text-rose-600"
   return "text-surface-400"
 }
+
+const historyTunggakan = computed(() => {
+  return historyRecords.value
+    .filter(r => r.saldo_akhir < 0)
+    .reduce((sum, r) => sum + Math.abs(r.saldo_akhir), 0)
+})
 
 const filteredRecords = computed(() => {
   if (!hasLoaded.value) return []
@@ -435,6 +531,7 @@ async function searchBill() {
   lastSearchedHouseNumber.value = searchHouseNumber.value
   isLoading.value = true
   hasLoaded.value = false
+  historyRecords.value = []
   try {
     const [config, res] = await Promise.all([
       getSiteConfig(),
@@ -445,6 +542,18 @@ async function searchBill() {
     if (config) siteConfig.value = config
     records.value = res.records.filter((r) => r.updated_at !== null)
     hasLoaded.value = true
+
+    isLoadingHistory.value = true
+    try {
+      const historyRes = await $fetch<{ records: HistoryRecord[] }>('/api/ipl/history', {
+        query: { block: selectedBlock.value, house_number: searchHouseNumber.value.trim() },
+      })
+      historyRecords.value = historyRes.records
+    } catch {
+      historyRecords.value = []
+    } finally {
+      isLoadingHistory.value = false
+    }
   } catch {
     records.value = []
   } finally {

@@ -10,8 +10,8 @@ interface BillRecord {
 }
 
 export function calculateTotal(r: BillRecord, config: SiteConfig): number {
-  // Rumah Kosong tidak ada tagihan
-  if (r.status_rumah === 'Kosong') return 0
+  // Rumah Kosong atau belum diset tidak ada tagihan
+  if (r.status_rumah === 'Kosong' || r.status_rumah === '') return 0
 
   const usage = Math.max(0, r.water_meter_current - r.water_meter_past)
   let total = 0

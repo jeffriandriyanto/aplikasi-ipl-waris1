@@ -377,7 +377,7 @@
                   <td>
                     <div class="flex items-center gap-1">
                       <span class="text-[11px] text-surface-400 font-mono">{{ r.water_meter_past }}→</span>
-                      <input v-model.number="r.water_meter_current" type="number" min="0" class="input-field py-1 text-[11px] font-mono w-16" :class="{ 'border-rose-500 bg-rose-50': isError(r) }" />
+                      <input v-model.number="r.water_meter_current" type="number" min="0" class="input-field py-1 text-[11px] font-mono w-24" :class="{ 'border-rose-500 bg-rose-50': isError(r) }" />
                       <span class="text-[11px] text-surface-400 font-mono">· {{ usageValue(r) }}m³</span>
                     </div>
                     <p v-if="isError(r)" class="text-[10px] text-rose-600 mt-0.5">Min: {{ r.water_meter_past }}</p>
