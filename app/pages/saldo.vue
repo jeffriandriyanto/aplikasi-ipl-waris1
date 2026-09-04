@@ -8,41 +8,47 @@
     </div>
 
     <!-- House Selector -->
-    <div class="glass-card mb-6">
-      <div class="p-4">
-        <div class="flex flex-col sm:flex-row gap-3">
-          <div class="flex-1">
-            <label class="text-xs text-surface-500 mb-1 block">Pilih Rumah</label>
-            <div class="relative">
-              <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="Cari blok atau nomor rumah..."
-                class="input-field pl-9 text-sm w-full"
-                @focus="showDropdown = true"
-              />
-            </div>
-            <div v-if="showDropdown && filteredHouses.length > 0" class="absolute z-50 mt-1 w-full max-w-md bg-white border border-surface-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-              <button
-                v-for="h in filteredHouses"
-                :key="h.id"
-                class="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-50 flex items-center justify-between border-b border-surface-50 last:border-0"
-                @click="selectHouse(h)"
-              >
-                <span class="font-medium text-surface-900">{{ h.block }} {{ h.house_number }}</span>
-                <span class="text-xs text-surface-400">{{ h.pic }}</span>
-              </button>
-            </div>
+    <div class="glass-card mb-6 overflow-hidden">
+      <div class="px-5 py-4 border-b border-surface-200">
+        <h2 class="text-base font-semibold text-surface-900">Cari Rumah</h2>
+        <p class="text-xs text-surface-500 mt-0.5">Pilih blok dan masukkan nomor rumah</p>
+      </div>
+      <div class="p-5">
+        <form @submit.prevent="searchHouse" class="space-y-4">
+          <div>
+            <label class="label-field">Blok Rumah</label>
+            <select v-model="selectedBlock" class="select-field text-sm" required>
+              <option value="" disabled>Pilih Blok...</option>
+              <option v-for="b in availableBlocks" :key="b" :value="b">{{ b }}</option>
+            </select>
           </div>
-        </div>
+          <div>
+            <label class="label-field">Nomor Rumah</label>
+            <input v-model="houseNumber" type="text" class="input-field text-sm" placeholder="Contoh: 12 atau 34" required />
+            <p class="text-[11px] text-surface-400 mt-1">Untuk rumah dengan nomor ganda (misal "34 & 38"), cukup ketik salah satu.</p>
+          </div>
+          <button type="submit" class="btn-primary w-full py-2.5" :disabled="isLoading">
+            <svg v-if="!isLoading" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <svg v-else class="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Cari Riwayat
+          </button>
+        </form>
+      </div>
+
+      <!-- Not Found -->
+      <div v-if="notFound" class="px-5 py-4 border-t border-surface-200 bg-rose-50">
+        <p class="text-sm text-rose-700 font-medium">Rumah tidak ditemukan</p>
+        <p class="text-xs text-rose-500 mt-0.5">Blok {{ selectedBlock }} No. {{ houseNumber }} tidak ada di master data.</p>
       </div>
     </div>
 
     <!-- No House Selected -->
-    <div v-if="!selectedHouse" class="flex flex-col items-center justify-center py-24">
+    <div v-if="!ledger && !isLoading && !notFound" class="flex flex-col items-center justify-center py-24">
       <div class="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
         <svg class="w-8 h-8 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -174,59 +180,46 @@
 </template>
 
 <script setup lang="ts">
-import type { HouseLedgerEntry } from "~/types";
+import type { HouseLedgerEntry, House } from "~/types";
 
 useHead({ title: "Saldo Per Rumah - IPL Manager" });
 
-const { formatCurrency } = useBilling();
+const { formatCurrency, matchHouseNumber } = useBilling();
 const { authFetch } = useAuthFetch();
 
-const searchQuery = ref("");
-const showDropdown = ref(false);
-const selectedHouse = ref<{ id: string; block: string; house_number: string; pic: string } | null>(null);
+const selectedBlock = ref("");
+const houseNumber = ref("");
+const notFound = ref(false);
 const isLoading = ref(false);
 const ledger = ref<{ entries: HouseLedgerEntry[]; house_id: string; house: { block: string; house_number: string; pic: string } | null } | null>(null);
 
-const houses = ref<{ id: string; block: string; house_number: string; pic: string }[]>([]);
+const { data: houses } = useFetch<House[]>("/api/houses", { default: () => [] });
 
-// Load houses on mount
-onMounted(async () => {
-  try {
-    const data = await $fetch<{ id: string; block: string; house_number: string; pic: string }[]>("/api/houses");
-    houses.value = data;
-  } catch (e) {
-    console.error("Failed to load houses:", e);
-  }
+const availableBlocks = computed(() => {
+  if (!houses.value || houses.value.length === 0) return [];
+  const blocks = new Set<string>();
+  houses.value.filter(h => h.is_active !== false).forEach((h) => blocks.add(h.block));
+  return Array.from(blocks).sort();
 });
 
-// Close dropdown on outside click
-if (import.meta.client) {
-  document.addEventListener("click", (e) => {
-    const target = e.target as HTMLElement;
-    if (!target.closest(".relative")) {
-      showDropdown.value = false;
-    }
+async function searchHouse() {
+  if (!selectedBlock.value || !houseNumber.value.trim()) return;
+
+  notFound.value = false;
+  ledger.value = null;
+
+  const match = houses.value.find((h) => {
+    if (h.is_active === false) return false;
+    if (h.block !== selectedBlock.value) return false;
+    return matchHouseNumber(h.house_number, houseNumber.value);
   });
-}
 
-const filteredHouses = computed(() => {
-  const q = searchQuery.value.toLowerCase().trim();
-  if (!q) return houses.value.slice(0, 20);
-  return houses.value
-    .filter(
-      (h) =>
-        h.block.toLowerCase().includes(q) ||
-        h.house_number.toLowerCase().includes(q) ||
-        h.pic.toLowerCase().includes(q)
-    )
-    .slice(0, 20);
-});
+  if (!match) {
+    notFound.value = true;
+    return;
+  }
 
-async function selectHouse(h: { id: string; block: string; house_number: string; pic: string }) {
-  selectedHouse.value = h;
-  searchQuery.value = `${h.block} ${h.house_number}`;
-  showDropdown.value = false;
-  await loadLedger(h.id);
+  await loadLedger(match.id!);
 }
 
 async function loadLedger(houseId: string) {
