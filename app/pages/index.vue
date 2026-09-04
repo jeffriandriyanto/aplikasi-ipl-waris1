@@ -229,8 +229,14 @@
 
       <!-- Riwayat Pembayaran -->
       <div v-if="hasLoaded && filteredRecords.length > 0" class="glass-card mb-6 overflow-hidden">
-        <div class="px-5 py-4 border-b border-surface-200">
-          <h2 class="text-base font-semibold text-surface-900">Riwayat Pembayaran</h2>
+        <div class="px-5 py-4 border-b border-surface-200 flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-semibold text-surface-900">Riwayat Pembayaran</h2>
+            <p class="text-xs text-surface-500 mt-0.5">{{ selectedYear }}</p>
+          </div>
+          <select v-model="selectedYear" class="select-field text-xs py-1 px-2 min-w-[100px]">
+            <option v-for="y in availableYears" :key="y" :value="y">{{ y }}</option>
+          </select>
         </div>
 
         <div v-if="isLoadingHistory" class="flex items-center justify-center py-12">
@@ -244,37 +250,60 @@
           <p class="text-xs text-surface-400">Belum ada riwayat pembayaran.</p>
         </div>
 
-        <div v-else class="divide-y divide-surface-100">
-          <div v-for="(hr, i) in historyRecords" :key="i"
-               class="px-4 py-3"
-               :class="hr.saldo_akhir < 0 ? 'bg-rose-50/50' : ''">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium text-surface-900 text-sm">{{ formatPeriodLabel(hr.period) }}</span>
-              <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                    :class="hr.status_iuran === 'Terbayarkan' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">
-                {{ hr.status_iuran === 'Terbayarkan' ? 'Lunas' : 'Belum' }}
+        <template v-else>
+          <!-- Saldo Tahun Sebelumnya -->
+          <div v-if="previousYearBalance !== 0" class="px-4 py-3 bg-surface-50 border-b border-surface-100">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-surface-500">Saldo dari tahun sebelumnya</span>
+              <span class="font-mono font-bold" :class="getSaldoClass(previousYearBalance)">
+                {{ formatCurrency(previousYearBalance) }}
               </span>
             </div>
-            <div class="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <p class="text-surface-400">Tagihan</p>
-                <p class="font-mono font-medium">{{ formatCurrency(hr.tagihan) }}</p>
+          </div>
+
+          <!-- Monthly Records -->
+          <div class="divide-y divide-surface-100">
+            <div v-for="(hr, i) in yearRecords" :key="i"
+                 class="px-4 py-3"
+                 :class="hr.saldo_akhir < 0 ? 'bg-rose-50/50' : ''">
+              <div class="flex items-center justify-between mb-2">
+                <span class="font-medium text-surface-900 text-sm">{{ formatMonthOnly(hr.period) }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                      :class="hr.status_iuran === 'Terbayarkan' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">
+                  {{ hr.status_iuran === 'Terbayarkan' ? 'Lunas' : 'Belum' }}
+                </span>
               </div>
-              <div>
-                <p class="text-surface-400">Meter Air</p>
-                <p class="font-mono">{{ hr.water_meter_past }} → {{ hr.water_meter_current }}</p>
-              </div>
-              <div>
-                <p class="text-surface-400">Dibayar</p>
-                <p class="font-mono font-medium text-emerald-600">{{ formatCurrency(hr.amount_paid) }}</p>
-              </div>
-              <div>
-                <p class="text-surface-400">Saldo</p>
-                <p class="font-mono font-bold" :class="getSaldoClass(hr.saldo_akhir)">{{ formatCurrency(hr.saldo_akhir) }}</p>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <p class="text-surface-400">Tagihan</p>
+                  <p class="font-mono font-medium">{{ formatCurrency(hr.tagihan) }}</p>
+                </div>
+                <div>
+                  <p class="text-surface-400">Meter Air</p>
+                  <p class="font-mono">{{ hr.water_meter_past }} → {{ hr.water_meter_current }}</p>
+                </div>
+                <div>
+                  <p class="text-surface-400">Dibayar</p>
+                  <p class="font-mono font-medium text-emerald-600">{{ formatCurrency(hr.amount_paid) }}</p>
+                </div>
+                <div>
+                  <p class="text-surface-400">Saldo</p>
+                  <p class="font-mono font-bold" :class="getSaldoClass(hr.saldo_akhir)">{{ formatCurrency(hr.saldo_akhir) }}</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+
+          <!-- Total Saldo Akhir Tahun -->
+          <div class="px-4 py-3 bg-primary/5 border-t border-surface-200">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-medium text-surface-700">Saldo Akhir {{ selectedYear }}</span>
+              <span class="font-mono font-bold text-sm" :class="getSaldoClass(yearEndBalance)">
+                {{ formatCurrency(yearEndBalance) }}
+              </span>
+            </div>
+          </div>
+        </template>
       </div>
     <!-- </template> -->
   </div>
@@ -362,8 +391,34 @@ interface HistoryRecord {
 
 const historyRecords = ref<HistoryRecord[]>([])
 const isLoadingHistory = ref(false)
+const selectedYear = ref(new Date().getFullYear().toString())
 
 const { data: houses } = useFetch<House[]>('/api/houses', { default: () => [] })
+
+const availableYears = computed(() => {
+  const years = new Set<string>()
+  historyRecords.value.forEach(r => {
+    const year = r.period.split('-')[0]
+    if (year) years.add(year)
+  })
+  return Array.from(years).sort((a, b) => b.localeCompare(a))
+})
+
+const yearRecords = computed(() => {
+  return historyRecords.value.filter(r => r.period.startsWith(selectedYear.value))
+})
+
+const previousYearBalance = computed(() => {
+  const prevYear = String(Number(selectedYear.value) - 1)
+  const prevYearRecords = historyRecords.value.filter(r => r.period.startsWith(prevYear))
+  if (prevYearRecords.length === 0) return 0
+  return prevYearRecords[prevYearRecords.length - 1].saldo_akhir
+})
+
+const yearEndBalance = computed(() => {
+  if (yearRecords.value.length === 0) return 0
+  return yearRecords.value[yearRecords.value.length - 1].saldo_akhir
+})
 
 const availableBlocks = computed(() => {
   if (!houses.value || houses.value.length === 0) return []
@@ -393,6 +448,12 @@ function formatPeriodLabel(period: string): string {
   const [year, month] = period.split('-')
   const idx = parseInt(month || '1', 10) - 1
   return `${MONTHS_SHORT[idx] || month} ${year}`
+}
+
+function formatMonthOnly(period: string): string {
+  const month = period.split('-')[1]
+  const idx = parseInt(month || '1', 10) - 1
+  return MONTHS_SHORT[idx] || month
 }
 
 const DONUT_COLORS = ['#356853', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
@@ -517,6 +578,11 @@ async function searchBill() {
         query: { block: selectedBlock.value, house_number: searchHouseNumber.value.trim() },
       })
       historyRecords.value = historyRes.records
+      if (historyRes.records.length > 0) {
+        const years = new Set(historyRes.records.map(r => r.period.split('-')[0]))
+        const sortedYears = Array.from(years).sort((a, b) => b.localeCompare(a))
+        selectedYear.value = sortedYears[0] || new Date().getFullYear().toString()
+      }
     } catch {
       historyRecords.value = []
     } finally {
