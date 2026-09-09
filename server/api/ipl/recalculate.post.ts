@@ -65,6 +65,7 @@ export default defineEventHandler(async (event) => {
         water_meter_current: record.water_meter_current,
         amount_paid: amountPaid,
         saldo_awal: saldoAwal,
+        write_off: !!record.write_off,
       }, config)
 
       const ref = db.collection('ipl_records').doc(record.id)

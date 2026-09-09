@@ -183,6 +183,10 @@
               <label class="label-field">Bayar (Rp)</label>
               <input v-model.number="singleRecord.amount_paid" type="number" min="0" class="input-field text-sm w-full" />
             </div>
+            <div class="flex items-center gap-2 pt-5">
+              <input v-model="singleRecord.write_off" type="checkbox" id="single-write-off" class="rounded border-surface-300 w-4 h-4" />
+              <label for="single-write-off" class="text-sm text-surface-700 cursor-pointer">Write-Off (Nol-kan Saldo)</label>
+            </div>
           </div>
 
           <!-- Summary Cards -->
@@ -265,6 +269,7 @@
           <span class="font-medium text-primary">{{ selectedIds.size }} dipilih</span>
           <button class="px-2.5 py-1 rounded bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700" @click="bulkSetStatus('Terbayarkan')">Terbayar</button>
           <button class="px-2.5 py-1 rounded bg-amber-600 text-white text-xs font-medium hover:bg-amber-700" @click="bulkSetStatus('Belum Terbayarkan')">Belum Bayar</button>
+          <button class="px-2.5 py-1 rounded bg-violet-600 text-white text-xs font-medium hover:bg-violet-700" @click="bulkSetWriteOff">Nol-kan</button>
           <button class="ml-auto text-surface-500 hover:text-surface-700" @click="selectedIds.clear()">Batal</button>
         </div>
 
@@ -279,6 +284,7 @@
                   <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium" :class="r.status_iuran === 'Terbayarkan' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">
                     {{ r.status_iuran === 'Terbayarkan' ? 'Lunas' : 'Belum' }}
                   </span>
+                  <span v-if="r.write_off" class="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-violet-100 text-violet-700">Write-Off</span>
                 </div>
                 <p class="text-[10px] text-surface-400">{{ r.status_rumah || '—' }} · {{ r.jenis_iuran }}</p>
               </div>
@@ -332,6 +338,10 @@
                   <label class="text-[10px] text-surface-400 mb-0.5 block">Saldo Akhir</label>
                   <p class="font-mono text-sm font-bold py-1" :class="getSaldoClass(closingBalance(r, siteConfig))">{{ formatCurrency(closingBalance(r, siteConfig)) }}</p>
                 </div>
+                <div class="flex items-center gap-2 pt-1">
+                  <input v-model="r.write_off" type="checkbox" :id="'wo-' + r.house_id" class="rounded border-surface-300 w-4 h-4" />
+                  <label :for="'wo-' + r.house_id" class="text-xs text-surface-600 cursor-pointer">Write-Off (Nol-kan Saldo)</label>
+                </div>
               </div>
             </div>
           </div>
@@ -352,6 +362,7 @@
                   <th>Saldo Awal</th>
                   <th>Bayar</th>
                   <th>Saldo Akhir</th>
+                  <th>Write-Off</th>
                 </tr>
               </thead>
               <tbody>
@@ -392,9 +403,12 @@
                   <td>
                     <span class="font-mono text-[11px] font-bold" :class="getSaldoClass(closingBalance(r, siteConfig))">{{ formatCurrency(closingBalance(r, siteConfig)) }}</span>
                   </td>
+                  <td class="text-center">
+                    <input v-model="r.write_off" type="checkbox" :id="'wo-desktop-' + r.house_id" class="rounded border-surface-300 w-4 h-4" />
+                  </td>
                 </tr>
                 <tr v-if="filteredRecords.length === 0">
-                  <td colspan="9" class="text-center py-8 text-surface-500 text-sm">Tidak ada data yang cocok.</td>
+                  <td colspan="10" class="text-center py-8 text-surface-500 text-sm">Tidak ada data yang cocok.</td>
                 </tr>
               </tbody>
             </table>
@@ -600,7 +614,8 @@ const singleDirty = computed(() => {
     r.jenis_iuran !== o.jenis_iuran ||
     r.status_iuran !== o.status_iuran ||
     r.water_meter_current !== o.water_meter_current ||
-    r.amount_paid !== o.amount_paid;
+    r.amount_paid !== o.amount_paid ||
+    r.write_off !== o.write_off;
 });
 
 async function searchSingleBill() {
@@ -634,7 +649,7 @@ async function loadSingleRecord(houseId: string) {
       query: { period: selectedPeriod.value, house_id: houseId },
     });
     siteConfig.value = res.config;
-    singleRecord.value = { ...res.record, amount_paid: res.record.amount_paid ?? 0 };
+    singleRecord.value = { ...res.record, amount_paid: res.record.amount_paid ?? 0, write_off: res.record.write_off ?? false };
     singleOriginal.value = { ...singleRecord.value };
   } catch (e) {
     console.error(e);
@@ -741,6 +756,16 @@ function bulkSetStatus(status: string) {
   toast.show(`Status iuran berhasil diubah.`, "success");
 }
 
+function bulkSetWriteOff() {
+  records.value.forEach((r) => {
+    if (selectedIds.value.has(r.house_id)) {
+      r.write_off = true;
+    }
+  });
+  selectedIds.value.clear();
+  toast.show(`Saldo berhasil dinol-kan (write-off).`, "success");
+}
+
 const uniqueBlocks = computed(() => {
   const blocks = new Set<string>();
   records.value.forEach((r) => blocks.add(r.block));
@@ -781,7 +806,8 @@ const dirtyRecords = computed(() => {
       r.jenis_iuran !== orig.jenis_iuran ||
       r.status_iuran !== orig.status_iuran ||
       r.water_meter_current !== orig.water_meter_current ||
-      r.amount_paid !== orig.amount_paid
+      r.amount_paid !== orig.amount_paid ||
+      r.write_off !== orig.write_off
     );
   });
 });
@@ -841,6 +867,7 @@ async function loadPeriod() {
     records.value = res.records.map((r) => ({
       ...r,
       amount_paid: r.amount_paid ?? 0,
+      write_off: r.write_off ?? false,
     }));
     originalRecords.value = records.value.map((r) => ({ ...r }));
 

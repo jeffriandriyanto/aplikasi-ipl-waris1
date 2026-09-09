@@ -89,6 +89,7 @@ export default defineEventHandler(async (event) => {
       amount_paid: data.amount_paid ?? undefined,
       saldo_awal: saldoAwal,
       saldo_akhir: undefined,
+      write_off: !!data.write_off,
       updated_at: data.updated_at ? data.updated_at.toDate() : null,
     }
   } else {
@@ -105,6 +106,7 @@ export default defineEventHandler(async (event) => {
       amount_paid: undefined,
       saldo_awal: saldoAwal,
       saldo_akhir: undefined,
+      write_off: false,
       updated_at: null,
     }
   }

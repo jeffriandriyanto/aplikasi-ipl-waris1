@@ -7,6 +7,7 @@ interface BillRecord {
   water_meter_current: number
   amount_paid?: number
   saldo_awal?: number
+  write_off?: boolean
 }
 
 export function calculateTotal(r: BillRecord, config: SiteConfig): number {
@@ -39,6 +40,7 @@ export function calculateTotal(r: BillRecord, config: SiteConfig): number {
 }
 
 export function closingBalance(r: BillRecord, config: SiteConfig): number {
+  if (r.write_off) return 0
   const bill = calculateTotal(r, config)
   const saldoAwal = r.saldo_awal ?? 0
   const paid = r.amount_paid ?? 0

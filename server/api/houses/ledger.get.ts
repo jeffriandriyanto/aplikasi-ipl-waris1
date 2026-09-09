@@ -44,6 +44,7 @@ export default defineEventHandler(async (event) => {
         saldo_awal: data.saldo_awal ?? 0,
         saldo_akhir: data.saldo_akhir ?? 0,
         status_iuran: data.status_iuran,
+        write_off: !!data.write_off,
       })
     })
 

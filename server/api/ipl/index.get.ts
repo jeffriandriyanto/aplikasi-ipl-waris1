@@ -93,6 +93,7 @@ export default defineEventHandler(async (event) => {
           amount_paid: currentData.amount_paid ?? undefined,
           saldo_awal: saldoAwal,
           saldo_akhir: undefined, // will be calculated below
+          write_off: !!currentData.write_off,
           updated_at: currentData.updated_at ? currentData.updated_at.toDate() : null,
         }
         record.saldo_akhir = closingBalance(record, config)
@@ -115,6 +116,7 @@ export default defineEventHandler(async (event) => {
           amount_paid: undefined,
           saldo_awal: saldoAwal,
           saldo_akhir: undefined,
+          write_off: false,
           updated_at: null,
         }
         record.saldo_akhir = closingBalance(record, config)

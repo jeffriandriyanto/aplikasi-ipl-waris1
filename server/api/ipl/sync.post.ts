@@ -55,6 +55,8 @@ export default defineEventHandler(async (event) => {
 
       const saldoAwal = typeof record.saldo_awal === 'number' ? record.saldo_awal : 0
 
+      const isWriteOff = !!record.write_off
+
       // Calculate saldo_akhir using server-side billing
       const saldoAkhir = closingBalance({
         status_rumah: record.status_rumah,
@@ -63,6 +65,7 @@ export default defineEventHandler(async (event) => {
         water_meter_current: record.water_meter_current,
         amount_paid: record.amount_paid,
         saldo_awal: saldoAwal,
+        write_off: isWriteOff,
       }, config)
 
       const data: any = {
@@ -77,6 +80,7 @@ export default defineEventHandler(async (event) => {
         water_meter_current: Math.max(0, Math.round(record.water_meter_current)),
         saldo_awal: Math.round(saldoAwal),
         saldo_akhir: Math.round(saldoAkhir),
+        write_off: isWriteOff,
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       }
 

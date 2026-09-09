@@ -34,6 +34,7 @@ export interface IplRecord {
   amount_paid?: number
   saldo_awal?: number    // Carry-over dari bulan sebelumnya (+ kredit, - utang)
   saldo_akhir?: number   // saldo_awal + amount_paid - tagihan
+  write_off?: boolean    // Jika true, saldo_akhir dipaksa 0 (voucher/bantuan RT)
   updated_at: Date | null
 }
 
@@ -87,6 +88,7 @@ export interface HouseLedgerEntry {
   saldo_awal: number
   saldo_akhir: number
   status_iuran: PaymentStatus
+  write_off?: boolean
 }
 
 export type KasType = 'masuk' | 'keluar'

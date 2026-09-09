@@ -43,6 +43,7 @@ export function useBilling() {
   }
 
   function closingBalance(r: IplRecord, config: SiteConfig): number {
+    if (r.write_off) return 0
     const bill = calculateTotal(r, config)
     const saldoAwal = r.saldo_awal ?? 0
     const paid = r.amount_paid ?? 0
