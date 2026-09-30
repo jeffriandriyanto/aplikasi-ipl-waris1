@@ -122,7 +122,7 @@
         </div>
 
         <div class="border-t border-surface-100 pt-4">
-          <p class="text-xs font-medium text-surface-700 mb-2">Tagihan Belum Lunas</p>
+          <p class="text-xs font-medium text-surface-700 mb-2">Laporan Tunggakan (Akumulasi)</p>
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="label-field">Bulan</label>
@@ -156,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import type { IplRecord, SiteConfig } from "~/types";
+import type { IplRecord } from "~/types";
 
 useHead({ title: "Dashboard - IPL Manager" });
 
@@ -172,6 +172,23 @@ function formatPeriodLabel(period: string): string {
   const [year, month] = period.split("-");
   const idx = parseInt(month || "1", 10) - 1;
   return `${MONTHS[idx] || month} ${year}`;
+}
+
+function monthsBetween(from: string, to: string): string[] {
+  const [fy, fm] = from.split("-").map(Number);
+  const [ty, tm] = to.split("-").map(Number);
+  const out: string[] = [];
+  let y = fy as number;
+  let m = fm as number;
+  while (y < ty || (y === ty && m <= tm)) {
+    out.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
 }
 
 const monthOptions = computed(() => MONTHS_ID.map((name, i) => ({ label: name, value: i + 1 })));
@@ -212,37 +229,78 @@ async function downloadKasPDF() {
   try {
     const period = `${pdfYear.value}-${String(pdfMonth.value).padStart(2, "0")}`;
 
-    const [config, iplRes, kasRes] = await Promise.all([
-      getSiteConfig(),
+    const [housesRes, iplRes, kasRes, summaryRes] = await Promise.all([
+      $fetch<any[]>("/api/houses"),
       $fetch<{ records: IplRecord[]; isGenerated: boolean }>("/api/ipl", { query: { period } }),
       authFetch<any[]>("/api/kas", { query: { period } }),
+      $fetch<CumulativeData>("/api/summary/all"),
     ]);
 
-    const paidRecords = iplRes.records.filter((r) => r.status_iuran === "Terbayarkan");
+    const houseMap = new Map<string, any>();
+    housesRes.forEach((h: any) => houseMap.set(h.id, h));
+
     let totalIuran = 0;
-    paidRecords.forEach((r) => { totalIuran += calculateTotal(r, config); });
+    iplRes.records.forEach((r) => { totalIuran += r.amount_paid || 0; });
+
+    const iuranRows: Array<[string, string, string, string, string]> = [];
+    iplRes.records
+      .filter((r) => (r.amount_paid || 0) > 0)
+      .sort((a, b) =>
+        a.block === b.block
+          ? a.house_number.localeCompare(b.house_number, undefined, { numeric: true })
+          : a.block.localeCompare(b.block),
+      )
+      .forEach((r, i) => {
+        const house = houseMap.get(r.house_id);
+        iuranRows.push([
+          String(i + 1),
+          r.block,
+          String(r.house_number),
+          house?.pic || "-",
+          formatCurrency(r.amount_paid || 0),
+        ]);
+      });
+
+    const toTime = (entry: any): number => {
+      const d = entry?.transaction_date || entry?.created_at;
+      if (!d) return 0;
+      return d.toDate ? d.toDate().getTime() : new Date(d).getTime();
+    };
 
     let kasMasuk = 0;
     let kasKeluar = 0;
     const kasRows: Array<[string, string, string, string, string]> = [];
+    [...kasRes]
+      .sort((a, b) => toTime(a) - toTime(b))
+      .forEach((entry: any) => {
+        const t = toTime(entry);
+        const dateStr = t ? new Date(t).toLocaleDateString("id-ID") : "-";
+        if (entry.type === "masuk") kasMasuk += entry.amount || 0;
+        else kasKeluar += entry.amount || 0;
+        kasRows.push([
+          dateStr,
+          entry.type === "masuk" ? "Masuk" : "Keluar",
+          entry.category || "-",
+          entry.description || "-",
+          formatCurrency(entry.amount || 0),
+        ]);
+      });
 
-    iplRes.records.forEach((r) => {
-      if (r.status_iuran === "Terbayarkan") {
-        const nominal = calculateTotal(r, config);
-        kasRows.push([`${r.block} No. ${r.house_number}`, "Iuran", r.jenis_iuran, (r as any).description || "-", formatCurrency(nominal)]);
-      }
-    });
-
-    kasRes.forEach((entry: any) => {
-      const dateStr = entry.transaction_date ? new Date(entry.transaction_date).toLocaleDateString("id-ID") : entry.created_at ? new Date(entry.created_at).toLocaleDateString("id-ID") : "-";
-      if (entry.type === "masuk") {
-        kasMasuk += entry.amount || 0;
-        kasRows.push([dateStr, "Masuk", entry.category, entry.description || "-", formatCurrency(entry.amount)]);
-      } else {
-        kasKeluar += entry.amount || 0;
-        kasRows.push([dateStr, "Keluar", entry.category, entry.description || "-", formatCurrency(entry.amount)]);
-      }
-    });
+    let saldoKumulatif = 0;
+    const rekapRows: Array<[string, string, string, string, string, string]> = [];
+    [...summaryRes.breakdown]
+      .sort((a, b) => a.period.localeCompare(b.period))
+      .forEach((b) => {
+        saldoKumulatif += b.saldoPeriod;
+        rekapRows.push([
+          formatPeriodLabel(b.period),
+          formatCurrency(b.iuranTerkumpul),
+          formatCurrency(b.kasMasukLainnya),
+          formatCurrency(b.totalPengeluaran),
+          formatCurrency(b.saldoPeriod),
+          formatCurrency(saldoKumulatif),
+        ]);
+      });
 
     const totalPemasukan = totalIuran + kasMasuk;
     const saldoAkhir = totalPemasukan - kasKeluar;
@@ -282,26 +340,69 @@ async function downloadKasPDF() {
     autoTable(doc, {
       startY: 47, head: [], body: summaryData, theme: "plain",
       styles: { fontSize: 9, cellPadding: 2 },
-      columnStyles: { 0: { cellWidth: 70, fontStyle: "bold" }, 1: { cellWidth: 60, halign: "right", fontStyle: "bold" } },
+      columnStyles: { 0: { cellWidth: 92, fontStyle: "bold" }, 1: { cellWidth: 90, halign: "right", fontStyle: "bold" } },
       margin: { left: 14, right: 14 },
     });
 
-    let finalY = (doc as any).lastAutoTable?.finalY || 47;
+    const pageHeight = doc.internal.pageSize.getHeight();
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("RINCIAN TRANSAKSI", 14, finalY + 8);
+    const beginSection = (title: string, needed: number): number => {
+      const last = (doc as any).lastAutoTable?.finalY as number | undefined;
+      let y = (last ?? 47) + 10;
+      if (y + needed > pageHeight - 24) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(0, 0, 0);
+      doc.text(title, 14, y);
+      return y + 3;
+    };
 
     autoTable(doc, {
-      startY: finalY + 11,
-      head: [["Tanggal/Unit", "Tipe", "Kategori", "Deskripsi", "Jumlah (Rp)"]],
-      body: kasRows, theme: "striped",
+      startY: beginSection("RINCIAN IURAN TERBAYAR", 40),
+      head: [["No", "Blok", "No. Rumah", "PIC", "Jumlah (Rp)"]],
+      body: iuranRows, theme: "striped",
       headStyles: { fillColor: [53, 104, 83], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
       styles: { fontSize: 8, cellPadding: 2.5, lineColor: [200, 200, 200], lineWidth: 0.1 },
-      columnStyles: { 0: { cellWidth: 40 }, 1: { cellWidth: 15 }, 2: { cellWidth: 35 }, 3: { cellWidth: 40 }, 4: { cellWidth: 40, halign: "right" } },
+      columnStyles: { 0: { cellWidth: 12, halign: "center" }, 1: { cellWidth: 34 }, 2: { cellWidth: 30 }, 3: { cellWidth: 56 }, 4: { cellWidth: 50, halign: "right" } },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: 14, right: 14 },
     });
+
+    autoTable(doc, {
+      startY: beginSection("RINCIAN TRANSAKSI KAS", 40),
+      head: [["Tanggal", "Tipe", "Kategori", "Deskripsi", "Jumlah (Rp)"]],
+      body: kasRows, theme: "striped",
+      headStyles: { fillColor: [53, 104, 83], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+      styles: { fontSize: 8, cellPadding: 2.5, lineColor: [200, 200, 200], lineWidth: 0.1 },
+      columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 20 }, 2: { cellWidth: 38 }, 3: { cellWidth: 56 }, 4: { cellWidth: 40, halign: "right" } },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: 14, right: 14 },
+    });
+
+    autoTable(doc, {
+      startY: beginSection("REKAPITULASI SELURUH PERIODE", 50),
+      head: [["Bulan", "Iuran", "Kas Masuk", "Pengeluaran", "Sisa Bulan", "Saldo Kumulatif"]],
+      body: rekapRows, theme: "striped",
+      headStyles: { fillColor: [53, 104, 83], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+      styles: { fontSize: 8, cellPadding: 2.5, lineColor: [200, 200, 200], lineWidth: 0.1 },
+      columnStyles: { 0: { cellWidth: 26 }, 1: { cellWidth: 28 }, 2: { cellWidth: 28 }, 3: { cellWidth: 28 }, 4: { cellWidth: 36, halign: "right" }, 5: { cellWidth: 36, halign: "right" } },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: 14, right: 14 },
+    });
+
+    let totalY = (((doc as any).lastAutoTable?.finalY as number | undefined) ?? 47) + 8;
+    if (totalY > pageHeight - 30) {
+      doc.addPage();
+      totalY = 20;
+    }
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text("SALDO KUMULATIF", 14, totalY);
+    doc.text(formatCurrency(saldoKumulatif), pageWidth - 14, totalY, { align: "right" });
 
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
@@ -327,112 +428,215 @@ async function downloadUnpaidPDF() {
   try {
     const period = `${unpaidYear.value}-${String(unpaidMonth.value).padStart(2, "0")}`;
 
-    const [housesRes, iplRes] = await Promise.all([
+    const [housesRes, summaryRes, config] = await Promise.all([
       $fetch<any[]>("/api/houses"),
-      $fetch<{ records: any[]; isGenerated: boolean }>("/api/ipl", { query: { period } }),
+      $fetch<CumulativeData>("/api/summary/all"),
+      getSiteConfig(),
     ]);
 
-    const config = await getSiteConfig();
-
+    const activeHouses = housesRes.filter((h: any) => h.is_active !== false);
     const houseMap = new Map<string, any>();
-    housesRes.forEach((h: any) => houseMap.set(h.id, h));
+    activeHouses.forEach((h: any) => houseMap.set(h.id, h));
 
-    const unpaidRecords = iplRes.records.filter((r) => {
-      if (r.status_iuran === "Terbayarkan") return false;
-      if (r.status_rumah !== "Ditinggali" && r.status_rumah !== "Disewakan") return false;
-      const house = houseMap.get(r.house_id);
-      if (!house || house.is_active === false) return false;
-      return true;
-    });
+    const knownPeriods = summaryRes.breakdown
+      .map((b) => b.period)
+      .filter((p) => p <= period)
+      .sort();
+    const firstPeriod = knownPeriods[0] || period;
+    const periods = monthsBetween(firstPeriod, period);
 
-    if (unpaidRecords.length === 0) {
-      toast.show("Semua rumah aktif sudah lunas untuk periode ini!", "success");
+    if (activeHouses.length === 0) {
+      toast.show("Belum ada rumah aktif.", "error");
       return;
     }
 
-    unpaidRecords.sort((a: any, b: any) => {
-      if (a.block === b.block) return a.house_number.localeCompare(b.house_number, undefined, { numeric: true });
-      return a.block.localeCompare(b.block);
+    const perPeriod = await Promise.all(
+      periods.map((p) => $fetch<{ records: IplRecord[] }>("/api/ipl", { query: { period: p } })),
+    );
+
+    const byHouse = new Map<string, Map<string, IplRecord>>();
+    perPeriod.forEach((res, idx) => {
+      const p = periods[idx] as string;
+      res.records.forEach((r) => {
+        if (!houseMap.has(r.house_id)) return;
+        if (!byHouse.has(r.house_id)) byHouse.set(r.house_id, new Map());
+        byHouse.get(r.house_id)!.set(p, r);
+      });
     });
 
-    let totalNominal = 0;
-    const rows: Array<[string, string, string, string, string]> = [];
+    const monthHeaders = periods.map((p) => {
+      const m = parseInt(p.split("-")[1] || "1", 10);
+      return MONTHS[m - 1] || p;
+    });
 
-    unpaidRecords.forEach((r: any, i: number) => {
-      const house = houseMap.get(r.house_id);
-      const pic = house?.pic || "-";
-      const usage = Math.max(0, r.water_meter_current - r.water_meter_past);
-      let nominal = 0;
-      if ((r.jenis_iuran || "").includes("Sampah")) nominal += config.dues_trash_flat || 25000;
-      if ((r.jenis_iuran || "").includes("Air")) {
-        const minFee = config.water_min_fee || 25000;
-        const pricePerCubic = config.water_price_per_cubic || 3500;
-        if (r.status_rumah === "Kosong" && usage === 0) { /* no water fee */ }
-        else nominal += usage <= 10 ? minFee : minFee + (usage - 10) * pricePerCubic;
+    interface Row {
+      blok: string;
+      noRumah: string;
+      pic: string;
+      cells: string[];
+      tunggakan: number;
+      adaBelum: boolean;
+    }
+
+    const rows: Row[] = [];
+    let totalTunggakan = 0;
+    let jumlahBerutang = 0;
+    let jumlahLunas = 0;
+
+    activeHouses.forEach((h: any) => {
+      const map = byHouse.get(h.id) || new Map<string, IplRecord>();
+      const cells: string[] = [];
+      let saldoAkhir = 0;
+      let adaBelum = false;
+
+      periods.forEach((p) => {
+        const r = map.get(p);
+        if (!r) {
+          cells.push("-");
+          return;
+        }
+        saldoAkhir = r.saldo_akhir ?? saldoAkhir;
+        if (r.write_off) {
+          cells.push("WO");
+          return;
+        }
+        const tagihan = calculateTotal(r, config);
+        if (tagihan <= 0) {
+          cells.push("-");
+          return;
+        }
+        if ((r.amount_paid || 0) >= tagihan) {
+          cells.push("L");
+          return;
+        }
+        adaBelum = true;
+        cells.push("B");
+      });
+
+      const tunggakan = saldoAkhir < 0 ? saldoAkhir : 0;
+      if (tunggakan < 0) {
+        jumlahBerutang++;
+        totalTunggakan += tunggakan;
+      } else if (!adaBelum) {
+        jumlahLunas++;
       }
-      totalNominal += nominal;
-      rows.push([String(i + 1), `${r.block} No. ${r.house_number}`, pic, r.jenis_iuran, formatCurrency(nominal)]);
+
+      rows.push({
+        blok: h.block,
+        noRumah: String(h.house_number),
+        pic: h.pic || "-",
+        cells,
+        tunggakan,
+        adaBelum,
+      });
     });
+
+    rows.sort((a, b) => {
+      if (a.tunggakan !== b.tunggakan) return a.tunggakan - b.tunggakan;
+      if (a.blok === b.blok) return a.noRumah.localeCompare(b.noRumah, undefined, { numeric: true });
+      return a.blok.localeCompare(b.blok);
+    });
+
+    const body = rows.map((r, i) => [
+      String(i + 1),
+      r.blok,
+      r.noRumah,
+      r.pic,
+      ...r.cells,
+      r.tunggakan < 0 ? formatCurrency(Math.abs(r.tunggakan)) : "-",
+    ]);
+    const debtFlags = rows.map((r) => r.tunggakan < 0);
 
     const { jsPDF } = await import("jspdf");
     const autoTable = (await import("jspdf-autotable")).default;
 
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
 
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("DAFTAR TAGIHAN BELUM LUNAS", pageWidth / 2, 20, { align: "center" });
+    doc.text("LAPORAN TUNGGAKAN IURAN", pageWidth / 2, 20, { align: "center" });
 
-    doc.setFontSize(11);
+    const firstLabel = MONTHS_ID[parseInt(firstPeriod.split("-")[1] || "1", 10) - 1];
+    const firstYear = firstPeriod.split("-")[0];
+    doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("PERIODE " + MONTHS_ID[unpaidMonth.value - 1].toUpperCase() + " " + unpaidYear.value, pageWidth / 2, 27, { align: "center" });
+    doc.text(
+      `AKUMULASI ${firstLabel} ${firstYear} S.D. ${MONTHS_ID[unpaidMonth.value - 1].toUpperCase()} ${unpaidYear.value}`,
+      pageWidth / 2, 26, { align: "center" },
+    );
 
     doc.setFontSize(9);
-    doc.text("Perumahan Waris - Sistem Pengelolaan Iuran Warga", pageWidth / 2, 33, { align: "center" });
+    doc.text("Perumahan Waris - Sistem Pengelolaan Iuran Warga", pageWidth / 2, 31, { align: "center" });
 
     doc.setDrawColor(225, 29, 72);
     doc.setLineWidth(0.5);
-    doc.line(14, 36, pageWidth - 14, 36);
+    doc.line(14, 34, pageWidth - 14, 34);
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(225, 29, 72);
-    doc.text(`${unpaidRecords.length} rumah belum membayar iuran`, 14, 44);
+    doc.text(`${jumlahBerutang} rumah menanggung tunggakan`, 14, 41);
 
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text(`Total tagihan: ${formatCurrency(totalNominal)}`, 14, 50);
+    doc.text(`Total tunggakan: ${formatCurrency(Math.abs(totalTunggakan))}`, 14, 47);
+    doc.text(`Rumah lunas tanpa tunggakan: ${jumlahLunas} dari ${rows.length} rumah aktif`, 14, 52);
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text("L = Lunas   B = Belum Bayar   WO = Write-Off   - = Tidak Ada Tagihan / Data", 14, 57);
 
+    const monthWidth = 66 / periods.length;
     autoTable(doc, {
-      startY: 55,
-      head: [["No", "Blok & No. Rumah", "PIC", "Jenis Iuran", "Nominal"]],
-      body: rows, theme: "striped",
-      headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
-      styles: { fontSize: 8, cellPadding: 2.5, lineColor: [200, 200, 200], lineWidth: 0.1 },
-      columnStyles: { 0: { cellWidth: 10, halign: "center" }, 1: { cellWidth: 45 }, 2: { cellWidth: 40 }, 3: { cellWidth: 35 }, 4: { cellWidth: 35, halign: "right" } },
+      startY: 61,
+      head: [["No", "Blok", "No. Rumah", "PIC", ...monthHeaders, "Tunggakan"]],
+      body, theme: "striped",
+      headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7 },
+      styles: { fontSize: 7, cellPadding: 1.5, lineColor: [200, 200, 200], lineWidth: 0.1, halign: "center", overflow: "linebreak" },
+      columnStyles: {
+        0: { cellWidth: 8, halign: "center" },
+        1: { cellWidth: 24, halign: "left" },
+        2: { cellWidth: 18, halign: "left" },
+        3: { cellWidth: 30, halign: "left" },
+        [4 + periods.length]: { cellWidth: 36, halign: "right", fontStyle: "bold" },
+        ...Object.fromEntries(monthHeaders.map((_, i) => [4 + i, { cellWidth: monthWidth, halign: "center" }])),
+      },
       alternateRowStyles: { fillColor: [254, 242, 242] },
       margin: { left: 14, right: 14 },
+      didParseCell: (data: any) => {
+        if (data.section !== "body") return;
+        if (!debtFlags[data.row.index]) return;
+        data.cell.styles.fillColor = [254, 226, 226];
+        if (data.column.index >= 4 && data.column.index < 4 + periods.length) {
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
     });
 
-    const finalY = (doc as any).lastAutoTable?.finalY || 55;
+    let finalY = ((doc as any).lastAutoTable?.finalY as number | undefined) ?? 61;
+    if (finalY > pageHeight - 34) {
+      doc.addPage();
+      finalY = 20;
+    }
 
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
-    doc.text("TOTAL TAGIHAN:", 14, finalY + 8);
-    doc.text(formatCurrency(totalNominal), pageWidth - 14, finalY + 8, { align: "right" });
+    doc.setTextColor(225, 29, 72);
+    doc.text("TOTAL TUNGGAKAN:", 14, finalY + 8);
+    doc.text(formatCurrency(Math.abs(totalTunggakan)), pageWidth - 14, finalY + 8, { align: "right" });
 
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
     doc.setFont("helvetica", "normal");
-    doc.text("Dokumen ini digenerate otomatis oleh sistem IPLKu pada " + new Date().toLocaleDateString("id-ID"), pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: "center" });
+    doc.text("Dokumen ini digenerate otomatis oleh sistem IPLKu pada " + new Date().toLocaleDateString("id-ID"), pageWidth / 2, pageHeight - 10, { align: "center" });
 
-    doc.save(`Tagihan_Belum_Lunas_${MONTHS_ID[unpaidMonth.value - 1]}_${unpaidYear.value}.pdf`);
-    toast.show("Daftar tagihan PDF berhasil diunduh!", "success");
+    doc.save(`Tunggakan_Iuran_${MONTHS_ID[unpaidMonth.value - 1]}_${unpaidYear.value}.pdf`);
+    toast.show("Laporan tunggakan PDF berhasil diunduh!", "success");
   } catch (e) {
     console.error("Unpaid PDF generation failed", e);
-    toast.show("Gagal membuat daftar tagihan PDF.", "error");
+    toast.show("Gagal membuat laporan tunggakan.", "error");
   } finally {
     unpaidGenerating.value = false;
   }

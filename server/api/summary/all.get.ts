@@ -1,7 +1,6 @@
 import { getFirestoreDb } from '../../utils/firebase'
 import { cachedFetch, CACHE_KEYS, CACHE_TTL } from '../../utils/cache'
-import type { SiteConfig, House } from '~/types'
-import { DEFAULT_SITE_CONFIG } from '~/types'
+import type { House } from '~/types'
 
 interface PeriodBreakdown {
   period: string
@@ -16,11 +15,6 @@ interface PeriodBreakdown {
 export default defineEventHandler(async () => {
   return cachedFetch('summary:all', CACHE_TTL.SUMMARY, async () => {
     const db = getFirestoreDb()
-
-    const configData = await cachedFetch<SiteConfig>(CACHE_KEYS.CONFIG, CACHE_TTL.CONFIG, async () => {
-      const configSnap = await db.collection('config').doc('site').get()
-      return configSnap.exists ? (configSnap.data() as SiteConfig) : DEFAULT_SITE_CONFIG
-    })
 
     // Fetch houses for active filtering
     const houses = await cachedFetch<House[]>(CACHE_KEYS.HOUSES, CACHE_TTL.HOUSES, async () => {
@@ -83,23 +77,9 @@ export default defineEventHandler(async () => {
       let rumahBelumBayar = 0
 
       iplRecords.forEach((data: any) => {
+        iuranTerkumpul += data.amount_paid || 0
         if (data.status_iuran === 'Terbayarkan') {
           rumahTerbayar++
-          const usage = Math.max(0, (data.water_meter_current || 0) - (data.water_meter_past || 0))
-          let total = 0
-          if ((data.jenis_iuran || '').includes('Sampah')) {
-            total += configData.dues_trash_flat || 25000
-          }
-          if ((data.jenis_iuran || '').includes('Air')) {
-            const minFee = configData.water_min_fee || 25000
-            const pricePerCubic = configData.water_price_per_cubic || 3500
-            if (data.status_rumah === 'Kosong' && usage === 0) {
-              // no water fee
-            } else {
-              total += usage <= 10 ? minFee : minFee + (usage - 10) * pricePerCubic
-            }
-          }
-          iuranTerkumpul += total
         } else {
           rumahBelumBayar++
         }

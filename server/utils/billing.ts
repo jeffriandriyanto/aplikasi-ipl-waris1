@@ -11,6 +11,7 @@ interface BillRecord {
 }
 
 export function calculateTotal(r: BillRecord, config: SiteConfig): number {
+  if (r.write_off) return 0
   // Rumah Kosong atau belum diset tidak ada tagihan
   if (r.status_rumah === 'Kosong' || r.status_rumah === '') return 0
 

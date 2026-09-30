@@ -1,7 +1,7 @@
 import { getFirestoreDb } from '../../utils/firebase'
 import { cachedFetch, CACHE_KEYS, CACHE_TTL } from '../../utils/cache'
-import type { SiteConfig, House } from '~/types'
-import { DEFAULT_SITE_CONFIG, OCCUPIED_STATUSES } from '~/types'
+import type { House } from '~/types'
+import { OCCUPIED_STATUSES } from '~/types'
 
 interface MonthTrend {
   period: string
@@ -37,11 +37,6 @@ interface GlobalSummary {
 export default defineEventHandler(async () => {
   return cachedFetch('summary:global', CACHE_TTL.SUMMARY, async () => {
     const db = getFirestoreDb()
-
-    const configData = await cachedFetch<SiteConfig>(CACHE_KEYS.CONFIG, CACHE_TTL.CONFIG, async () => {
-      const configSnap = await db.collection('config').doc('site').get()
-      return configSnap.exists ? (configSnap.data() as SiteConfig) : DEFAULT_SITE_CONFIG
-    })
 
     // Fetch houses for active filtering
     const houses = await cachedFetch<House[]>(CACHE_KEYS.HOUSES, CACHE_TTL.HOUSES, async () => {
@@ -99,23 +94,7 @@ export default defineEventHandler(async () => {
 
       let periodIuran = 0
       iplRecords.forEach((data: any) => {
-        if (data.status_iuran === 'Terbayarkan') {
-          const usage = Math.max(0, (data.water_meter_current || 0) - (data.water_meter_past || 0))
-          let total = 0
-          if ((data.jenis_iuran || '').includes('Sampah')) {
-            total += configData.dues_trash_flat || 25000
-          }
-          if ((data.jenis_iuran || '').includes('Air')) {
-            const minFee = configData.water_min_fee || 25000
-            const pricePerCubic = configData.water_price_per_cubic || 3500
-            if (data.status_rumah === 'Kosong' && usage === 0) {
-              // no water fee
-            } else {
-              total += usage <= 10 ? minFee : minFee + (usage - 10) * pricePerCubic
-            }
-          }
-          periodIuran += total
-        }
+        periodIuran += data.amount_paid || 0
       })
 
       let periodKasMasuk = 0
@@ -147,23 +126,9 @@ export default defineEventHandler(async () => {
     currentIpl.forEach((data: any) => {
       if (OCCUPIED_STATUSES.includes(data.status_rumah)) {
         currentOccupied++
+        currentIuran += data.amount_paid || 0
         if (data.status_iuran === 'Terbayarkan') {
           currentPaid++
-          const usage = Math.max(0, (data.water_meter_current || 0) - (data.water_meter_past || 0))
-          let total = 0
-          if ((data.jenis_iuran || '').includes('Sampah')) {
-            total += configData.dues_trash_flat || 25000
-          }
-          if ((data.jenis_iuran || '').includes('Air')) {
-            const minFee = configData.water_min_fee || 25000
-            const pricePerCubic = configData.water_price_per_cubic || 3500
-            if (data.status_rumah === 'Kosong' && usage === 0) {
-              // no water fee
-            } else {
-              total += usage <= 10 ? minFee : minFee + (usage - 10) * pricePerCubic
-            }
-          }
-          currentIuran += total
         } else {
           currentUnpaid++
         }

@@ -3,6 +3,7 @@ import type { IplRecord, SiteConfig } from '~/types'
 
 export function useBilling() {
   function calculateTotal(r: IplRecord, config: SiteConfig): number {
+    if (r.write_off) return 0
     // Rumah Kosong atau belum diset tidak ada tagihan
     if (r.status_rumah === 'Kosong' || r.status_rumah === '') return 0
 

@@ -677,7 +677,7 @@ useHead({ title: "Kas & Keuangan - IPL Manager" });
 
 const { generatePeriodOptions, getCurrentPeriod, getSiteConfig } =
   useDatabase();
-const { calculateTotal, formatCurrency, sanitizeCsvField } = useBilling();
+const { formatCurrency, sanitizeCsvField } = useBilling();
 const { authFetch } = useAuthFetch();
 const toast = useToast();
 
@@ -737,11 +737,8 @@ watch(
 );
 
 const summary = computed(() => {
-  const paidRecords = iplRecords.value.filter(
-    (r) => r.status_iuran === "Terbayarkan",
-  );
-  const totalIuran = paidRecords.reduce(
-    (sum, r) => sum + calculateTotal(r, siteConfig.value),
+  const totalIuran = iplRecords.value.reduce(
+    (sum, r) => sum + (r.amount_paid || 0),
     0,
   );
 
