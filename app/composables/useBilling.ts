@@ -1,3 +1,4 @@
+import { matchHouseNumber } from '~/types'
 import type { IplRecord, SiteConfig } from '~/types'
 
 export function useBilling() {
@@ -62,20 +63,6 @@ export function useBilling() {
     if (s === 'Ditinggali') return 'badge-occupied'
     if (s === 'Disewakan') return 'badge-rented'
     return 'badge-vacant'
-  }
-
-  function normalizeHouseNumber(input: string): string {
-    return input.toLowerCase().replace(/\s+/g, '').trim()
-  }
-
-  function matchHouseNumber(houseNumber: string, search: string): boolean {
-    const hn = normalizeHouseNumber(houseNumber)
-    const q = normalizeHouseNumber(search)
-
-    if (hn === q) return true
-
-    const tokens = hn.split(/[&,/\-]+|(?:dan)/).map(t => t.trim()).filter(Boolean)
-    return tokens.some(token => token === q)
   }
 
   function sanitizeCsvField(value: string | number): string {

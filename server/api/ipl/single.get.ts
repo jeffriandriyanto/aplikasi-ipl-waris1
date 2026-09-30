@@ -57,24 +57,22 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'House not found' })
   }
 
-  // Fetch current period record
-  const currentDoc = await db.collection('ipl_records')
-    .doc(`${period}_${houseId}`)
-    .get()
-
-  // Fetch previous period record for saldo carry-over
+  // Fetch current + previous period record by house_id (doc ID tidak konsisten untuk nomor ganda)
   const prevPeriod = getPreviousPeriod(period)
-  const prevDoc = await db.collection('ipl_records')
-    .doc(`${prevPeriod}_${houseId}`)
-    .get()
+  const [currentSnap, prevSnap] = await Promise.all([
+    db.collection('ipl_records').where('period', '==', period).get(),
+    db.collection('ipl_records').where('period', '==', prevPeriod).get(),
+  ])
+  const currentDoc = currentSnap.docs.find(d => d.data().house_id === houseId)
+  const prevDoc = prevSnap.docs.find(d => d.data().house_id === houseId)
 
-  const prevData = prevDoc.exists ? prevDoc.data() : null
+  const prevData = prevDoc?.data() ?? null
   const saldoAwal = prevData?.saldo_akhir ?? 0
 
   let record: IplRecord
 
-  if (currentDoc.exists) {
-    const data = currentDoc.data()!
+  if (currentDoc) {
+    const data = currentDoc.data()
     record = {
       id: currentDoc.id,
       period: data.period,

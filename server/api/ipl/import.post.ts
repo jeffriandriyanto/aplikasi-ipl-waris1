@@ -1,7 +1,8 @@
 import { getFirestoreDb, getFirebaseAdmin } from '../../utils/firebase'
 import { invalidateCachePrefix } from '../../utils/cache'
+import { getHouseIdMap, resolveHouseId } from '../../utils/houses'
 import { closingBalance } from '../../utils/billing'
-import { generateIplRecordId, generateHouseId } from '~/types'
+import { generateIplRecordId } from '~/types'
 import type { SiteConfig } from '~/types'
 
 export default defineEventHandler(async (event) => {
@@ -30,6 +31,8 @@ export default defineEventHandler(async (event) => {
   const chunkSize = 400
   let written = 0
 
+  const houseIdMap = await getHouseIdMap()
+
   for (let i = 0; i < records.length; i += chunkSize) {
     const chunk = records.slice(i, i + chunkSize)
     const batch = db.batch()
@@ -38,7 +41,7 @@ export default defineEventHandler(async (event) => {
       // Minimal validation: only need block, house_number, period
       if (!record.block || !record.house_number || !record.period) return
 
-      const houseId = record.house_id || generateHouseId(record.block, record.house_number)
+      const houseId = resolveHouseId(houseIdMap, record.block, record.house_number, record.house_id)
       const id = generateIplRecordId(record.period, record.block, record.house_number)
       const ref = db.collection('ipl_records').doc(id)
 

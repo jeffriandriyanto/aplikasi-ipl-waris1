@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import { generateHouseId } from '~/types'
 import type { IplRecord, HouseStatus, DuesType, PaymentStatus, SiteConfig } from '~/types'
 
 export interface ImportError {
@@ -118,7 +119,7 @@ export function useExcel() {
       const meterCurrent = Number(row['Meter Skrg']) || 0
       const amountPaid = Number(row['Bayar (Rp)']) || 0
 
-      const houseId = `${block.toLowerCase().replace(/\s+/g, '_')}_${houseNumber.toLowerCase().replace(/\s+/g, '_')}`
+      const houseId = generateHouseId(block, houseNumber)
 
       records.push({
         period,

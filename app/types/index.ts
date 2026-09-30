@@ -52,11 +52,28 @@ export interface DashboardStats {
 
 // Firestore document ID generation helpers
 export function generateHouseId(block: string, houseNumber: string): string {
-  return `${block.toLowerCase().replace(/\s+/g, '_')}_${houseNumber.toLowerCase().replace(/\s+/g, '_')}`
+  return `${block}_${houseNumber}`.toLowerCase().replace(/\s+/g, '').replace(/&/g, '-')
 }
 
 export function generateIplRecordId(period: string, block: string, houseNumber: string): string {
   return `${period}_${generateHouseId(block, houseNumber)}`
+}
+
+export function normalizeHouseNumber(input: string): string {
+  return String(input ?? '').toLowerCase().replace(/\s+/g, '').trim()
+}
+
+export function matchHouseNumber(houseNumber: string, search: string): boolean {
+  const hn = normalizeHouseNumber(houseNumber)
+  const q = normalizeHouseNumber(search)
+
+  if (hn === q) return true
+
+  const tokens = hn.split(/[&,/\-]+|(?:dan)/).map(t => t.trim()).filter(Boolean)
+  if (tokens.some(token => token === q)) return true
+
+  const searchTokens = q.split(/[&,/\-]+|(?:dan)/).map(t => t.trim()).filter(Boolean)
+  return searchTokens.some(token => token === hn)
 }
 
 // Opsi dropdown (Hanya Sampah dihapus dari DUES_TYPE_OPTIONS)

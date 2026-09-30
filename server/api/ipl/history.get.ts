@@ -1,12 +1,14 @@
 import { getFirestoreDb } from '../../utils/firebase'
+import { matchHouseNumber } from '~/types'
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const block = (query.block as string || '').trim()
   const houseNumber = (query.house_number as string || '').trim()
+  const houseId = (query.house_id as string || '').trim()
 
-  if (!block || !houseNumber) {
-    throw createError({ statusCode: 400, statusMessage: 'block and house_number are required' })
+  if (!block || (!houseId && !houseNumber)) {
+    throw createError({ statusCode: 400, statusMessage: 'block and house_id or house_number are required' })
   }
 
   const db = getFirestoreDb()
@@ -19,14 +21,14 @@ export default defineEventHandler(async (event) => {
     return { records: [] }
   }
 
-  const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '').trim()
-  const targetNorm = normalize(houseNumber)
-
   const records: any[] = []
   snapshot.forEach(doc => {
     const data = doc.data()
-    const hn = normalize(data.house_number || '')
-    if (hn !== targetNorm) return
+    if (houseId) {
+      if (data.house_id !== houseId) return
+    } else if (!matchHouseNumber(String(data.house_number ?? ''), houseNumber)) {
+      return
+    }
 
     const saldoAwal = data.saldo_awal ?? 0
     const amountPaid = data.amount_paid ?? 0

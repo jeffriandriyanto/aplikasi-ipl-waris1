@@ -574,8 +574,13 @@ async function searchBill() {
 
     isLoadingHistory.value = true
     try {
+      const historyHouseId = filteredRecords.value[0]?.house_id
       const historyRes = await $fetch<{ records: HistoryRecord[] }>('/api/ipl/history', {
-        query: { block: selectedBlock.value, house_number: searchHouseNumber.value.trim() },
+        query: {
+          block: selectedBlock.value,
+          house_number: searchHouseNumber.value.trim(),
+          ...(historyHouseId ? { house_id: historyHouseId } : {}),
+        },
       })
       historyRecords.value = historyRes.records
       if (historyRes.records.length > 0) {
